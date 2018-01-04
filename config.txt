@@ -1,0 +1,3 @@
+log_dir = Log/
+audio_dir = mp3/
+search_url = http://www.xiami.com/search?key=
