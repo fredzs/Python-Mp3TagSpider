@@ -12,7 +12,7 @@ class NetworkService(object):
 
     @staticmethod
     def get_year_html(album_url):
-        logging.info("开始处理" + album_url)
+        logging.debug("开始处理：" + album_url)
         year_html = requests.get(album_url, headers=NetworkService.headers).text
         return year_html
 

@@ -1,19 +1,21 @@
 import os
 import logging
+from logging.config import fileConfig
 import warnings
 import eyed3
 from bs4 import BeautifulSoup
 from datetime import datetime
 from time import sleep
 
-from Factory.LogFactory import LogFactory
 from Service.ConfigService import ConfigService
 from Service.NetworkService import NetworkService
 
 ########################################################################################################
 warnings.filterwarnings("ignore")
 ConfigService().init()
-LogFactory().init()
+fileConfig('logging_config.ini')
+logger = logging.getLogger()
+logger.debug('often makes a very good meal of %s', 'visiting tourists')
 ########################################################################################################
 FILEPATH = "mp3/"
 
@@ -32,55 +34,67 @@ def update_audio_tag():
     for file_name in filter(lambda x: x.endswith(".mp3"), os.listdir(FILEPATH)):
         audio_file = eyed3.load(FILEPATH + file_name)
         tag = audio_file.tag
-
-        print(tag.version)
-
-        if tag.recording_date:
+        recording_date = tag.recording_date
+        if recording_date:
+            logging.info("文件名称：'%s'发布日期(%s)完整，跳过。" % (file_name, recording_date))
             continue
         else:
-            song_artist = tag.artist
-            song_title = tag.title
-            song_album = tag.album
-            logging.warning("文件名称：" + song_artist + " - " + song_title)
+            try:
+                song_artist = tag.artist
+                song_title = tag.title
+                song_album = tag.album
+                logging.info("文件名称：" + song_artist + " - " + song_title)
 
-            if (song_artist != "") & (song_title != ""):
-                search_content = song_artist + " " + song_title
-            else:
-                search_content = file_name
-
-            r = NetworkService.get_song_info_html(search_content)
-            soup = BeautifulSoup(r, 'html.parser')
-
-            song_section_soup = soup.find_all('table', class_='track_list')
-            song_name_soup_list = song_section_soup[0].find_all('td', class_='song_name')
-            if song_name_soup_list[0].find_all('a')[0]['title'] == "该艺人演唱的其他版本":
-                del song_name_soup_list[0]
-            song_artist_soup_list = song_section_soup[0].find_all('td', class_='song_artist')
-            song_album_soup_list = song_section_soup[0].find_all('td', class_='song_album')
-
-            album_url = ""
-            for i, item in enumerate(song_name_soup_list):
-                song_title_from_web = item.find_all('a')[0]['title']
-                song_artist_from_web = song_artist_soup_list[0].find_all('a')[i]['title']
-                song_album_from_web = song_album_soup_list[0].find_all('a')[i]['title'].replace("《", "").replace("》", "")
                 if (song_artist != "") & (song_title != ""):
-                    if song_title_from_web == song_title: # & (song_artist_from_web == song_artist):
-                        if song_album == "":
-                            song_album = song_album_from_web
-                        album_url = song_album_soup_list[0].find_all('a')[i]['href']
-                        break
+                    search_content = song_artist + " " + song_title
                 else:
-                    song_artist = song_artist_from_web
-                    song_title = song_title_from_web
-                    song_album = song_album_from_web
-                    album_url = song_album_soup_list[0].find_all('a')[i]['href']
-            logging.debug("找到专辑《%s》，进入 %s 抓取" % (song_album, album_url))
-            year_str = get_year(album_url) + " 00:00:00"
-            song_year = datetime.strptime(year_str, "%Y-%m-%d %H:%M:%S")
-            tag.recording_date = song_year
+                    search_content = file_name
 
-            tag.save()
-            sleep(2)
+                r = NetworkService.get_song_info_html(search_content)
+                soup = BeautifulSoup(r, 'html.parser')
+
+                song_section_soup = soup.find_all('table', class_='track_list')
+                song_name_soup_list = song_section_soup[0].find_all('td', class_='song_name')
+                if song_name_soup_list[0].find_all('a')[0]['title'] == "该艺人演唱的其他版本":
+                    del song_name_soup_list[0]
+                song_artist_soup_list = song_section_soup[0].find_all('td', class_='song_artist')
+                song_album_soup_list = song_section_soup[0].find_all('td', class_='song_album')
+
+                album_url = ""
+                found = False
+                for i, item in enumerate(song_name_soup_list):
+                    song_title_from_web = item.find_all('a')[0]['title']
+                    song_artist_from_web = song_artist_soup_list[0].find_all('a')[i]['title']
+                    song_album_from_web = song_album_soup_list[0].find_all('a')[i]['title'].replace("《", "").replace("》", "")
+
+                    if (song_title_from_web == song_title) | (song_artist_from_web == song_artist):
+                        if song_artist == "":
+                            tag.artist = song_artist_from_web
+                        if song_title == "":
+                            tag.title = song_title_from_web
+                        if song_album == "":
+                            tag.album = song_album_from_web
+
+                        album_url = song_album_soup_list[0].find_all('a')[i]['href']
+                        found = True
+                        break
+                    else:
+                        continue
+                if not found:
+                    logger.warning("未找到歌曲")
+                    raise Exception
+
+                logging.info("找到专辑《%s》，进入 %s 抓取" % (song_album, album_url))
+                year_str = get_year(album_url)
+                song_year = datetime.strptime(year_str, "%Y-%m-%d")
+                date = eyed3.core.Date(song_year.year, song_year.month, song_year.day)
+                tag.recording_date = date
+            except:
+                logger.warning("")
+            else:
+                tag.save()
+            finally:
+                sleep(2)
 
 
 if "__main__" == __name__:
