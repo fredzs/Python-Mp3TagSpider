@@ -1,5 +1,6 @@
 import logging
 import requests
+from urllib import parse
 
 from Entity.Config import Config
 
@@ -19,7 +20,8 @@ class NetworkService(object):
     @staticmethod
     def get_song_info_html(search_content):
         logging.info("搜索项目：%s" % search_content)
-        url = Config.get_config_field()["search_url"] + search_content
+        raw_url = Config.get_config_field()["search_url"] + search_content
+        url = parse.quote_plus(raw_url, safe=':/?=')
         logging.info("访问地址：%s" % url)
         item_html = requests.get(url, headers=NetworkService.headers).text
         return item_html
