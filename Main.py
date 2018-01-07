@@ -50,7 +50,7 @@ def get_album_details(song_title, song_album, album_url):
 
         disc_total = len(soup_album.find_all("strong", class_="trackname"))
         soup_track_list = soup_album.find_all("table", class_="track_list")[0].find_all("tr")[1:]
-        for i, tr in enumerate(soup_track_list):
+        for tr in soup_track_list:
             if not found:
                 if len(tr.find_all("td")) > 1:
                     title = tr.find_all("td", class_="song_name")[0].find_all('a')[0].text
@@ -77,109 +77,112 @@ def get_album_details(song_title, song_album, album_url):
 
 
 def locate_line(tag, file_name, search_song_artist=False, update_album=False):
-    song_artist = tag.artist
-    song_artist = song_artist.replace(chr(0), ' ')
+    song_artist = tag.artist.replace(chr(0), ' ')
     album_artist = tag.album_artist
     song_title = tag.title
     song_album = tag.album
     album_url = ""
+    found = False
     if search_song_artist:
         search_content = "%s %s" % (song_artist, song_title)
+        artist_compare = song_artist
     else:
         if (album_artist is not None) & (song_title is not None):
             search_content = "%s %s" % (album_artist, song_title)
         else:
             search_content = file_name
+        artist_compare = album_artist
+
     try:
         r = NetworkService.get_song_info_html(search_content)
         soup = BeautifulSoup(r, 'html.parser')
         song_section_soup = soup.find_all('table', class_='track_list')
-        song_name_soup_list = song_section_soup[0].find_all('tr')[1:]
-        found = False
+        if len(song_section_soup) > 0:
+            song_name_soup_list = song_section_soup[0].find_all('tr')[1:]
 
-        for i, item in enumerate(song_name_soup_list[:9]):
-            soup_title = item.find_all('td', class_="song_name")[0].find_all('a')
-            if soup_title[0]['title'] == "该艺人演唱的其他版本":
-                song_title_from_web = soup_title[1]['title']
-            else:
-                song_title_from_web = soup_title[0]['title']
+            for item in song_name_soup_list[:9]:
+                song_artist_from_web = ""
+                album_artist_from_web = ""
+                artist_group_from_web = ""
+                soup_title = item.find_all('td', class_="song_name")[0].find_all('a')
+                if soup_title[0]['title'] == "该艺人演唱的其他版本":
+                    song_title_from_web = soup_title[1]['title']
+                else:
+                    song_title_from_web = soup_title[0]['title']
 
-            song_artist_from_web = ""
-            album_artist_from_web = ""
-            artist_group_from_web = ""
-            soup_artist = item.find_all('td', class_='song_artist')[0].find_all('a')
-            if len(soup_artist) > 1 & (album_artist != song_artist):
-                album_artist_from_web = soup_artist[0]['title']
-                for artist in soup_artist[1:]:
-                    song_artist_from_web = "%s %s" % (song_artist_from_web, artist.text)
-                if song_artist_from_web[0] == " ":
-                    song_artist_from_web = song_artist_from_web[1:]
-                song_artist_from_web = song_artist_from_web.replace(";", " ")
-                artist_group = '%s ( %s )' % (album_artist, song_artist)
-            else:
-                artist_group_from_web = soup_artist[0].text.strip().replace(";", " ")
-                artist_group = song_artist
+                soup_artist = item.find_all('td', class_='song_artist')[0].find_all('a')
+                if len(soup_artist) > 1 & (album_artist != song_artist):
+                    album_artist_from_web = soup_artist[0]['title']
+                    for artist in soup_artist[1:]:
+                        song_artist_from_web = "%s %s" % (song_artist_from_web, artist.text)
+                    if song_artist_from_web[0] == " ":
+                        song_artist_from_web = song_artist_from_web[1:]
+                    song_artist_from_web = song_artist_from_web.replace(";", " ")
+                    artist_group = '%s ( %s )' % (album_artist, song_artist)
+                else:
+                    artist_group_from_web = soup_artist[0].text.strip().replace(";", " ")
+                    artist_group = song_artist
 
-            song_album_from_web = item.find_all('td', class_='song_album')[0].find_all('a')[0].text \
-                .replace("《", "").replace("》", "")
+                song_album_from_web = item.find_all('td', class_='song_album')[0].find_all('a')[0].text \
+                    .replace("《", "").replace("》", "")
 
-            flag = {}
-            publisher = ""
-            if song_title_from_web.lower() == song_title.lower():
-                flag["title"] = 1
-            if artist_group_from_web.lower() == artist_group.lower():
-                flag["artist_album_artist"] = 1
-            if song_artist_from_web.lower() == song_artist.lower():
-                flag["artist"] = 1
-            if song_album_from_web.lower() == song_album.lower():
-                flag["album"] = 1
+                flag = {}
+                publisher = ""
+                if song_title_from_web.lower() == song_title.lower():
+                    flag["title"] = 1
+                if artist_group_from_web.lower() == artist_group.lower():
+                    flag["artist_album_artist"] = 1
+                if song_artist_from_web.lower() == song_artist.lower():
+                    flag["artist"] = 1
+                if song_album_from_web.lower() == song_album.lower():
+                    flag["album"] = 1
 
-            if len(flag) < 3:
-                continue
-            if len(flag) == 4:
-                logger.info("Title、Artist和Album标签完全匹配，定位准确。")
-            elif len(flag) >= 3:
-                if "title" not in flag:
-                    logger.warning("Title未完全匹配，请手动处理。")
-                    publisher += "Title "
-                if ("artist_album_artist" not in flag) & ("artist" not in flag):
-                    logger.warning("Artist未完全匹配，请手动处理。")
-                    publisher += "Artist Album_artist"
-                if ("artist_album_artist" not in flag) & ("artist" in flag):
-                    if "album" in flag:
-                        logger.warning("Artist未完全匹配，但Album_artist匹配，自动更新。")
-                        logger.info("写入Album_artist：%s。" % album_artist_from_web)
-                        tag.album_artist = album_artist_from_web
-                        publisher += "NewArtist "
-                    else:
+                if len(flag) < 3:
+                    continue
+                if len(flag) == 4:
+                    logger.info("Title、Artist和Album标签完全匹配，定位准确。")
+                elif len(flag) >= 3:
+                    if "title" not in flag:
+                        logger.warning("Title未完全匹配，请手动处理。")
+                        publisher += "Title "
+                    if ("artist_album_artist" not in flag) & ("artist" not in flag):
                         logger.warning("Artist未完全匹配，请手动处理。")
-                        publisher += "Artist "
-                if "album" not in flag:
-                    if update_album:
-                        logger.warning("Album未完全匹配，自动更新。")
-                        tag.album = song_album_from_web
-                        logger.info("旧Album：%s；新Album：%s。" % (song_album, song_album_from_web))
-                        publisher += "NewAlbum "
-                    else:
-                        logger.warning("Album未完全匹配，请手动处理。")
-                        publisher += "Album "
+                        publisher += "Artist Album_artist"
+                    if ("artist_album_artist" not in flag) & ("artist" in flag):
+                        if "album" in flag:
+                            logger.warning("Artist未完全匹配，但Album_artist匹配，自动更新。")
+                            logger.info("写入Album_artist：%s。" % album_artist_from_web)
+                            tag.album_artist = album_artist_from_web
+                            publisher += "NewArtist "
+                        else:
+                            logger.warning("Artist未完全匹配，请手动处理。")
+                            publisher += "Artist "
+                    if "album" not in flag:
+                        if update_album:
+                            logger.warning("Album未完全匹配，自动更新。")
+                            tag.album = song_album_from_web
+                            logger.info("旧Album：%s；新Album：%s。" % (song_album, song_album_from_web))
+                            publisher += "NewAlbum "
+                        else:
+                            logger.warning("Album未完全匹配，请手动处理。")
+                            publisher += "Album "
 
-                tag.publisher = publisher
-                if song_artist == "":
-                    tag.album_artist = album_artist_from_web
-                    tag.artist = song_artist_from_web
-                if song_title == "":
-                    tag.title = song_title_from_web
-                if song_album == "":
-                    tag.album = song_album_from_web
+                    tag.publisher = publisher
+                    # if song_artist == "":
+                    #     tag.album_artist = album_artist_from_web
+                    #     tag.artist = song_artist_from_web
+                    # if song_title == "":
+                    #     tag.title = song_title_from_web
+                    # if song_album == "":
+                    #     tag.album = song_album_from_web
 
-            album_url = item.find_all('td', class_='song_album')[0].find_all('a')[0]['href']
-            found = True
-            break
+                album_url = item.find_all('td', class_='song_album')[0].find_all('a')[0]['href']
+                found = True
+                break
 
-        if not found:
-            # raise Exception
-            logger.warning("未找到歌曲")
+            if not found:
+                # raise Exception
+                logger.warning("未找到歌曲")
     except Exception as e:
         logger.warning("警告:%s" % e)
     finally:

@@ -19,14 +19,15 @@
       <file leaf-file-name="Main.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/Main.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="346">
-              <caret line="128" column="33" lean-forward="true" selection-start-line="128" selection-start-column="33" selection-end-line="128" selection-end-column="33" />
+            <state relative-caret-position="-178">
+              <caret line="103" column="41" lean-forward="true" selection-start-line="103" selection-start-column="41" selection-end-line="103" selection-end-column="41" />
               <folding>
                 <element signature="e#45#54#0" expanded="true" />
                 <element signature="e#680#875#0" expanded="false" />
-                <element signature="e#940#2787#0" expanded="false" />
-                <element signature="e#7725#8595#0" expanded="false" />
-                <element signature="e#10134#10488#0" expanded="false" />
+                <element signature="e#940#2773#0" expanded="false" />
+                <element signature="e#7351#7374#0" expanded="false" />
+                <element signature="e#8100#8970#0" expanded="false" />
+                <element signature="e#10509#10863#0" expanded="false" />
               </folding>
             </state>
           </provider>
@@ -51,6 +52,8 @@
       <find>enum</find>
       <find>find_all</find>
       <find>TRACKNUM</find>
+      <find>i</find>
+      <find>[i]</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -341,8 +344,8 @@
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/Main.py</url>
-          <line>101</line>
-          <option name="timeStamp" value="146" />
+          <line>125</line>
+          <option name="timeStamp" value="147" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>
@@ -352,7 +355,7 @@
           </properties>
         </breakpoint>
       </default-breakpoints>
-      <option name="time" value="147" />
+      <option name="time" value="149" />
     </breakpoint-manager>
     <watches-manager>
       <configuration name="PythonConfigurationType">
@@ -424,9 +427,10 @@
           <folding>
             <element signature="e#45#54#0" expanded="true" />
             <element signature="e#680#875#0" expanded="false" />
-            <element signature="e#940#2787#0" expanded="false" />
-            <element signature="e#7725#8595#0" expanded="false" />
-            <element signature="e#10134#10488#0" expanded="false" />
+            <element signature="e#940#2773#0" expanded="false" />
+            <element signature="e#7351#7374#0" expanded="false" />
+            <element signature="e#8100#8970#0" expanded="false" />
+            <element signature="e#10509#10863#0" expanded="false" />
           </folding>
         </state>
       </provider>
@@ -462,9 +466,10 @@
           <folding>
             <element signature="e#45#54#0" expanded="true" />
             <element signature="e#680#875#0" expanded="false" />
-            <element signature="e#940#2787#0" expanded="false" />
-            <element signature="e#7725#8595#0" expanded="false" />
-            <element signature="e#10134#10488#0" expanded="false" />
+            <element signature="e#940#2773#0" expanded="false" />
+            <element signature="e#7351#7374#0" expanded="false" />
+            <element signature="e#8100#8970#0" expanded="false" />
+            <element signature="e#10509#10863#0" expanded="false" />
           </folding>
         </state>
       </provider>
@@ -500,9 +505,10 @@
           <folding>
             <element signature="e#45#54#0" expanded="true" />
             <element signature="e#680#875#0" expanded="false" />
-            <element signature="e#940#2787#0" expanded="false" />
-            <element signature="e#7725#8595#0" expanded="false" />
-            <element signature="e#10134#10488#0" expanded="false" />
+            <element signature="e#940#2773#0" expanded="false" />
+            <element signature="e#7351#7374#0" expanded="false" />
+            <element signature="e#8100#8970#0" expanded="false" />
+            <element signature="e#10509#10863#0" expanded="false" />
           </folding>
         </state>
       </provider>
@@ -530,9 +536,10 @@
           <folding>
             <element signature="e#45#54#0" expanded="true" />
             <element signature="e#680#875#0" expanded="false" />
-            <element signature="e#940#2787#0" expanded="false" />
-            <element signature="e#7725#8595#0" expanded="false" />
-            <element signature="e#10134#10488#0" expanded="false" />
+            <element signature="e#940#2773#0" expanded="false" />
+            <element signature="e#7351#7374#0" expanded="false" />
+            <element signature="e#8100#8970#0" expanded="false" />
+            <element signature="e#10509#10863#0" expanded="false" />
           </folding>
         </state>
       </provider>
@@ -544,9 +551,10 @@
           <folding>
             <element signature="e#45#54#0" expanded="true" />
             <element signature="e#680#875#0" expanded="false" />
-            <element signature="e#940#2787#0" expanded="false" />
-            <element signature="e#7725#8595#0" expanded="false" />
-            <element signature="e#10134#10488#0" expanded="false" />
+            <element signature="e#940#2773#0" expanded="false" />
+            <element signature="e#7351#7374#0" expanded="false" />
+            <element signature="e#8100#8970#0" expanded="false" />
+            <element signature="e#10509#10863#0" expanded="false" />
           </folding>
         </state>
       </provider>
@@ -803,14 +811,15 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/Main.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="346">
-          <caret line="128" column="33" lean-forward="true" selection-start-line="128" selection-start-column="33" selection-end-line="128" selection-end-column="33" />
+        <state relative-caret-position="-178">
+          <caret line="103" column="41" lean-forward="true" selection-start-line="103" selection-start-column="41" selection-end-line="103" selection-end-column="41" />
           <folding>
             <element signature="e#45#54#0" expanded="true" />
             <element signature="e#680#875#0" expanded="false" />
-            <element signature="e#940#2787#0" expanded="false" />
-            <element signature="e#7725#8595#0" expanded="false" />
-            <element signature="e#10134#10488#0" expanded="false" />
+            <element signature="e#940#2773#0" expanded="false" />
+            <element signature="e#7351#7374#0" expanded="false" />
+            <element signature="e#8100#8970#0" expanded="false" />
+            <element signature="e#10509#10863#0" expanded="false" />
           </folding>
         </state>
       </provider>
