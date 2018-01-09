@@ -28,7 +28,6 @@ def check_tag_complete(tag):
     if recording_date is not None:
         logging.info("发布日期(%s)完整，跳过。" % recording_date)
         pass_this = True
-
     return pass_this
 
 
@@ -77,10 +76,11 @@ def get_album_details(song_title, song_album, album_url):
 
 
 def locate_line(tag, file_name, search_song_artist=False, update_album=False):
+    song_title = tag.title
     song_artist = tag.artist.replace(chr(0), ' ')
     album_artist = tag.album_artist
-    song_title = tag.title
     song_album = tag.album
+
     album_url = ""
     found = False
     if search_song_artist:
@@ -111,7 +111,7 @@ def locate_line(tag, file_name, search_song_artist=False, update_album=False):
                     song_title_from_web = soup_title[0]['title']
 
                 soup_artist = item.find_all('td', class_='song_artist')[0].find_all('a')
-                if len(soup_artist) > 1 & (album_artist != song_artist):
+                if len(soup_artist) > 1 : # & (album_artist != song_artist):
                     album_artist_from_web = soup_artist[0]['title']
                     for artist in soup_artist[1:]:
                         song_artist_from_web = "%s %s" % (song_artist_from_web, artist.text)
