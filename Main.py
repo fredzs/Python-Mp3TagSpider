@@ -28,6 +28,7 @@ def check_tag_complete(tag):
     if recording_date is not None:
         logging.info("发布日期(%s)完整，跳过。" % recording_date)
         pass_this = True
+
     return pass_this
 
 
@@ -75,14 +76,93 @@ def get_album_details(song_title, song_album, album_url):
         return album_year, disc_and_track
 
 
+def find_artists_from_td(soup_artist_td):
+    song_artist_from_web = ""
+    album_artist_from_web = ""
+
+    if len(soup_artist_td) > 1 & (album_artist != song_artist):
+        album_artist_from_web = soup_artist_td[0]['title']
+        for artist in soup_artist_td[1:]:
+            song_artist_from_web = "%s %s" % (song_artist_from_web, artist.text)
+        if song_artist_from_web[0] == " ":
+            song_artist_from_web = song_artist_from_web[1:]
+        song_artist_from_web = song_artist_from_web.replace(";", " ")
+    else:
+        artist_group_from_web = soup_artist_td[0].text.strip().replace(";", " ")
+
+
+
+    return song_artist_from_web, album_artist_from_web
+
+
+def locate_song(soup_song_list, song_info, search_strict, has_album_artist=False, search_times=9):
+    found = False
+    album_url = ""
+    for line in soup_song_list[:search_times]:
+        song_info_web = {}
+        soup_title = line.find_all('td', class_="song_name")[0].find_all('a')
+        song_info_web["title"] = soup_title[1]['title'] if soup_title[0]['title'] == "该艺人演唱的其他版本" else soup_title[0]['title']
+        soup_artist = line.find_all('td', class_='song_artist')[0].find_all('a')
+        if has_album_artist:
+            if len(soup_artist) > 1:
+
+                song_info_web["artist"], song_info_web["album_artist"]
+        else:
+            song_info_web["artist"] = find_artists_from_td(line.find_all('td', class_='song_artist')[0].find_all('a'))
+        song_info_web["album"] = line.find_all('td', class_='song_album')[0].find_all('a')[0].text.replace("《", "").replace("》", "")
+
+    return found, album_url
+
+
+def get_album_url(tag, file_name, has_album_artist=False):
+
+    soup_song_list = locate_song_list(tag, file_name, has_album_artist)
+    if soup_song_list is None:
+        return False, ""
+
+    song_info = {}
+    search_strict = 4 if has_album_artist else 3
+    song_info["title"] = tag.title
+    song_info["song_artist"] = tag.artist
+    if has_album_artist:
+        song_info["album_artist"] = tag.album_artist
+    if tag.album is not None:
+        song_info["album"] = tag.album
+    album_url, found = locate_song(soup_song_list, song_info, search_strict, has_album_artist)
+    if not found:
+        album_url, found = locate_song(soup_song_list, song_info, search_strict-1, has_album_artist)
+
+    return found, album_url
+
+
+def locate_song_list(tag, file_name, has_album_artist=False):
+    song_title = tag.title
+    song_artist = tag.artist.replace(chr(0), ' ')
+    album_artist = tag.album_artist
+    if has_album_artist:
+        search_content = "%s %s" % (album_artist, song_title)
+    else:
+        if song_artist is not None:
+            search_content = "%s %s" % (song_artist, song_title)
+        else:
+            search_content = file_name
+
+    r = NetworkService.get_song_info_html(search_content)
+    soup = BeautifulSoup(r, 'html.parser')
+    song_section_soup = soup.find_all('table', class_='track_list')
+    if len(song_section_soup) == 0:
+        return None
+    soup_song_list = song_section_soup[0].find_all('tr')[1:]
+    return soup_song_list
+
+
 def locate_line(tag, file_name, search_song_artist=False, update_album=False):
+    album_url = ""
+    found = False
     song_title = tag.title
     song_artist = tag.artist.replace(chr(0), ' ')
     album_artist = tag.album_artist
     song_album = tag.album
-
-    album_url = ""
-    found = False
     if search_song_artist:
         search_content = "%s %s" % (song_artist, song_title)
         artist_compare = song_artist
@@ -111,7 +191,7 @@ def locate_line(tag, file_name, search_song_artist=False, update_album=False):
                     song_title_from_web = soup_title[0]['title']
 
                 soup_artist = item.find_all('td', class_='song_artist')[0].find_all('a')
-                if len(soup_artist) > 1 : # & (album_artist != song_artist):
+                if len(soup_artist) > 1 & (album_artist != song_artist):
                     album_artist_from_web = soup_artist[0]['title']
                     for artist in soup_artist[1:]:
                         song_artist_from_web = "%s %s" % (song_artist_from_web, artist.text)
