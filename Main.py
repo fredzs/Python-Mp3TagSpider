@@ -2,6 +2,7 @@
 # -*- coding: gbk -*-
 import os
 import shutil
+import re
 import logging
 from logging.config import fileConfig
 import warnings
@@ -20,7 +21,7 @@ logger = logging.getLogger()
 ##########################################################################
 FILE_PATH = 'mp3/'
 DONE_PATH = 'mp3/Done/'
-
+KEY_TAGS = {"title", "album_artist", "song_artist", "album"}
 
 def check_tag_complete(tag):
     pass_this = False
@@ -80,36 +81,68 @@ def find_artists_from_td(soup_artist_td):
     song_artist_from_web = ""
     album_artist_from_web = ""
 
-    if len(soup_artist_td) > 1 & (album_artist != song_artist):
-        album_artist_from_web = soup_artist_td[0]['title']
-        for artist in soup_artist_td[1:]:
-            song_artist_from_web = "%s %s" % (song_artist_from_web, artist.text)
-        if song_artist_from_web[0] == " ":
-            song_artist_from_web = song_artist_from_web[1:]
-        song_artist_from_web = song_artist_from_web.replace(";", " ")
-    else:
-        artist_group_from_web = soup_artist_td[0].text.strip().replace(";", " ")
+    # if len(soup_artist_td) > 1 & (album_artist != song_artist):
+    #     album_artist_from_web = soup_artist_td[0]['title']
+    #     for artist in soup_artist_td[1:]:
+    #         song_artist_from_web = "%s %s" % (song_artist_from_web, artist.text)
+    #     if song_artist_from_web[0] == " ":
+    #         song_artist_from_web = song_artist_from_web[1:]
+    #     song_artist_from_web = song_artist_from_web.replace(";", " ")
+    # else:
+    #     artist_group_from_web = soup_artist_td[0].text.strip().replace(";", " ")
 
 
 
     return song_artist_from_web, album_artist_from_web
 
 
-def locate_song(soup_song_list, song_info, search_strict, has_album_artist=False, search_times=9):
+def locate_song(soup_song_list, song_info, search_strict, has_album_artist=False, search_times=10):
     found = False
     album_url = ""
-    for line in soup_song_list[:search_times]:
+    for line in soup_song_list[:search_times - 1]:
         song_info_web = {}
-        soup_title = line.find_all('td', class_="song_name")[0].find_all('a')
-        song_info_web["title"] = soup_title[1]['title'] if soup_title[0]['title'] == "该艺人演唱的其他版本" else soup_title[0]['title']
-        soup_artist = line.find_all('td', class_='song_artist')[0].find_all('a')
-        if has_album_artist:
-            if len(soup_artist) > 1:
+        flag = {}
 
-                song_info_web["artist"], song_info_web["album_artist"]
+        soup_title = line.find_all('td', class_="song_name")[0].find_all('a')
+        soup_album = line.find_all('td', class_='song_album')[0].find_all('a')[0]
+        song_info_web["title"] = soup_title[1]['title'] if soup_title[0]['title'] == "该艺人演唱的其他版本" else soup_title[0]['title']
+        # soup_artist = line.find_all('td', class_='song_artist')[0].find_all('a')
+        artist_str = line.find_all('td', class_='song_artist')[0].text.replace("\t","").replace("\n","").replace("\r","")
+
+        pattern = re.compile("(.*)\((.*)\)(.*)")
+        match = pattern.match(artist_str)
+        if match:
+            song_info_web["album_artist"] = match.group(1).strip()
+            song_info_web["song_artist"] = match.group(2).strip()
         else:
-            song_info_web["artist"] = find_artists_from_td(line.find_all('td', class_='song_artist')[0].find_all('a'))
-        song_info_web["album"] = line.find_all('td', class_='song_album')[0].find_all('a')[0].text.replace("《", "").replace("》", "")
+            song_info_web["album_artist"] = ""
+            song_info_web["song_artist"] = artist_str
+        song_info_web["album"] = soup_album.text.replace("《", "").replace("》", "")
+
+        # if song_info_web["title"].lower() == song_info["title"].lower():
+        #     flag["title"] = 1
+        # if song_info_web["album_artist"].lower() == song_info["album_artist"].lower():
+        #     flag["album_artist"] = 1
+        # if song_info_web["song_artist"].lower() == song_info["song_artist"].lower():
+        #     flag["artist"] = 1
+        # if song_info_web["album"].lower() == song_info["album"].lower():
+        #     flag["album"] = 1
+        for key in KEY_TAGS:
+            if song_info_web[key].lower() == song_info[key].lower():
+                flag[key] = 1
+
+        if len(flag) < search_strict - 1:
+            continue
+        if len(flag) == search_strict:
+            logger.info("Title、Artist和Album标签完全匹配，定位准确。")
+            found = True
+        elif len(flag) == search_strict - 1:
+            logger.info("标签未完全匹配。")
+
+        album_url = soup_album['href']
+        found = True
+        break
+
 
     return found, album_url
 
@@ -123,9 +156,9 @@ def get_album_url(tag, file_name, has_album_artist=False):
     song_info = {}
     search_strict = 4 if has_album_artist else 3
     song_info["title"] = tag.title
-    song_info["song_artist"] = tag.artist
+    song_info["song_artist"] = tag.artist.replace(chr(0), ' ')
     if has_album_artist:
-        song_info["album_artist"] = tag.album_artist
+        song_info["album_artist"] = tag.album_artist.replace(chr(0), ' ')
     if tag.album is not None:
         song_info["album"] = tag.album
     album_url, found = locate_song(soup_song_list, song_info, search_strict, has_album_artist)
@@ -311,11 +344,11 @@ def update_audio_tag():
                 continue
             else:
                 if tag.album_artist is not None:
-                    album_url = locate_line(tag, file_name)
+                    album_url = get_album_url(tag, file_name, True)
                     if album_url == "":
-                        album_url = locate_line(tag, file_name, True)
+                        album_url = get_album_url(tag, file_name)
                 else:
-                    album_url = locate_line(tag, file_name, True)
+                    album_url = get_album_url(tag, file_name)
                 success = update_album_info(tag, album_url)
         except IOError:
             logger.warning("打开文件失败！")
