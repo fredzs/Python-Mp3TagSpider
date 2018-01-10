@@ -23,6 +23,7 @@ FILE_PATH = 'mp3/'
 DONE_PATH = 'mp3/Done/'
 KEY_TAGS = {"title", "album_artist", "song_artist", "album"}
 
+
 def check_tag_complete(tag):
     pass_this = False
     recording_date = tag.recording_date
@@ -35,7 +36,6 @@ def check_tag_complete(tag):
 
 def get_album_details(song_title, song_album, album_url):
     logging.info("找到专辑《%s》，进入 %s 抓取" % (song_album, album_url))
-    album_year = "1950-12-31"
     disc_total = 1
     disc = 1
     track_total = 1
@@ -47,6 +47,7 @@ def get_album_details(song_title, song_album, album_url):
         soup_album_main_info = soup_album.find_all("div", id="album_info")[0]
         album_year_string = soup_album_main_info.find_all("table")[0].find_all("tr")[3].find_all("td")[1].text
         album_year = album_year_string.replace('年', '-').replace('月', '-').replace('日', '')
+        # album_year = "2015-01-02"
         logging.info("专辑发行时间为%s" % album_year)
 
         disc_total = len(soup_album.find_all("strong", class_="trackname"))
@@ -91,95 +92,63 @@ def find_artists_from_td(soup_artist_td):
     # else:
     #     artist_group_from_web = soup_artist_td[0].text.strip().replace(";", " ")
 
-
-
     return song_artist_from_web, album_artist_from_web
 
 
-def locate_song(soup_song_list, song_info, search_strict, has_album_artist=False, search_times=10):
+def locate_song(soup_song_list, song_info, search_strictly=True, search_times=10):
     found = False
     album_url = ""
-    for line in soup_song_list[:search_times - 1]:
+    new_artist = {}
+    for i, line in enumerate(soup_song_list[:search_times - 1]):
         song_info_web = {}
         flag = {}
 
         soup_title = line.find_all('td', class_="song_name")[0].find_all('a')
         soup_album = line.find_all('td', class_='song_album')[0].find_all('a')[0]
         song_info_web["title"] = soup_title[1]['title'] if soup_title[0]['title'] == "该艺人演唱的其他版本" else soup_title[0]['title']
-        # soup_artist = line.find_all('td', class_='song_artist')[0].find_all('a')
-        artist_str = line.find_all('td', class_='song_artist')[0].text.replace("\t","").replace("\n","").replace("\r","")
+        artist_str = line.find_all('td', class_='song_artist')[0].text.replace("\t","").replace("\n"," ").replace("\r","").strip()
 
         pattern = re.compile("(.*)\((.*)\)(.*)")
         match = pattern.match(artist_str)
         if match:
             song_info_web["album_artist"] = match.group(1).strip()
-            song_info_web["song_artist"] = match.group(2).strip()
+            song_info_web["song_artist"] = match.group(2).strip().replace(";"," ")
         else:
             song_info_web["album_artist"] = ""
             song_info_web["song_artist"] = artist_str
         song_info_web["album"] = soup_album.text.replace("《", "").replace("》", "")
 
-        # if song_info_web["title"].lower() == song_info["title"].lower():
-        #     flag["title"] = 1
-        # if song_info_web["album_artist"].lower() == song_info["album_artist"].lower():
-        #     flag["album_artist"] = 1
-        # if song_info_web["song_artist"].lower() == song_info["song_artist"].lower():
-        #     flag["artist"] = 1
-        # if song_info_web["album"].lower() == song_info["album"].lower():
-        #     flag["album"] = 1
         for key in KEY_TAGS:
-            if song_info_web[key].lower() == song_info[key].lower():
-                flag[key] = 1
+            if key in song_info:
+                if song_info_web[key].lower() == song_info[key].lower():
+                    flag[key] = 1
 
-        if len(flag) < search_strict - 1:
-            continue
-        if len(flag) == search_strict:
-            logger.info("Title、Artist和Album标签完全匹配，定位准确。")
-            found = True
-        elif len(flag) == search_strict - 1:
-            logger.info("标签未完全匹配。")
+        count = int(i+1)
+        if search_strictly:
+            if len(flag) < len(song_info):
+                continue
+            if len(flag) == len(song_info):
+                logger.info("------第%s次匹配成功（Title、Artist和Album标签完全匹配，定位准确）" % count)
+                found = True
+        else:
+            if len(flag) < len(song_info) - 1:
+                continue
+            if len(flag) == len(song_info) - 1:
+                logger.info("------第%s次匹配成功！（标签未完全匹配，请关注）" % count)
+                found = True
+                if "title" in flag & "album" in flag:
+                    if song_info_web["album_artist"] == song_info["song_artist"]:
+                        new_artist['new_song_artist'] = song_info_web["song_artist"]
+                        new_artist['new_album_artist'] = song_info_web["album_artist"]
 
         album_url = soup_album['href']
         found = True
         break
 
-
-    return found, album_url
-
-
-def get_album_url(tag, file_name, has_album_artist=False):
-
-    soup_song_list = locate_song_list(tag, file_name, has_album_artist)
-    if soup_song_list is None:
-        return False, ""
-
-    song_info = {}
-    search_strict = 4 if has_album_artist else 3
-    song_info["title"] = tag.title
-    song_info["song_artist"] = tag.artist.replace(chr(0), ' ')
-    if has_album_artist:
-        song_info["album_artist"] = tag.album_artist.replace(chr(0), ' ')
-    if tag.album is not None:
-        song_info["album"] = tag.album
-    album_url, found = locate_song(soup_song_list, song_info, search_strict, has_album_artist)
-    if not found:
-        album_url, found = locate_song(soup_song_list, song_info, search_strict-1, has_album_artist)
-
-    return found, album_url
+    return found, album_url, new_artist
 
 
-def locate_song_list(tag, file_name, has_album_artist=False):
-    song_title = tag.title
-    song_artist = tag.artist.replace(chr(0), ' ')
-    album_artist = tag.album_artist
-    if has_album_artist:
-        search_content = "%s %s" % (album_artist, song_title)
-    else:
-        if song_artist is not None:
-            search_content = "%s %s" % (song_artist, song_title)
-        else:
-            search_content = file_name
-
+def locate_song_list(tag, search_content, has_album_artist=False):
     r = NetworkService.get_song_info_html(search_content)
     soup = BeautifulSoup(r, 'html.parser')
     song_section_soup = soup.find_all('table', class_='track_list')
@@ -302,11 +271,40 @@ def locate_line(tag, file_name, search_song_artist=False, update_album=False):
         return album_url
 
 
+# ----------------------------------------------------------------------------------#
+def get_album_url(tag, search_content, has_album_artist=False):
+
+    soup_song_list = locate_song_list(tag, search_content, has_album_artist)
+    if soup_song_list is None:
+        return False, ""
+
+    song_info = {"title": tag.title,  "song_artist": tag.artist.replace(chr(0), ' ')}
+    if has_album_artist:
+        song_info["album_artist"] = tag.album_artist.replace(chr(0), ' ')
+    if tag.album is not None:
+        song_info["album"] = tag.album
+    logger.info("----严格模式启用。")
+    found, album_url, new_artist = locate_song(soup_song_list, song_info)
+    if not found:
+        logger.info("----严格模式未找到歌曲，尝试模糊查询。")
+        found, album_url, new_artist = locate_song(soup_song_list, song_info, False)
+    if not found:
+        logger.info("----模糊查询未找到歌曲。")
+    return album_url, new_artist
+
+
+def update_song_info(tag, new_artist):
+    result = False
+    tag.artist = new_artist["song_artist"]
+    tag.album_artist = new_artist["album_artist"]
+
+
 def update_album_info(tag, album_url):
     result = False
     try:
         if album_url != "":
             year_str, disc_and_track = get_album_details(tag.title, tag.album, album_url)
+            year_str = "2015-11-12"
             song_year = datetime.strptime(year_str, "%Y-%m-%d")
             date = eyed3.core.Date(song_year.year, song_year.month, song_year.day)
             tag.recording_date = date
@@ -325,6 +323,7 @@ def update_album_info(tag, album_url):
         logger.warning("写入专辑信息错误:%s" % e)
     finally:
         return result
+# ----------------------------------------------------------------------------------#
 
 
 def update_audio_tag():
@@ -343,13 +342,26 @@ def update_audio_tag():
                 logging.info("歌曲标签完整，跳过。")
                 continue
             else:
-                if tag.album_artist is not None:
-                    album_url = get_album_url(tag, file_name, True)
-                    if album_url == "":
-                        album_url = get_album_url(tag, file_name)
+                if tag.artist is None:
+                    search_content = file_name
                 else:
-                    album_url = get_album_url(tag, file_name)
-                success = update_album_info(tag, album_url)
+                    search_content = "%s %s" % (tag.artist, tag.title)
+                if tag.album_artist is not None:
+                    logging.info("--专辑歌手存在，优先查找。")
+                    search_content = "%s %s" % (tag.album_artist, tag.title)
+                    album_url = get_album_url(tag, search_content, True)
+                    if album_url == "":
+                        logging.info("--查找专辑歌手无匹配，查找歌曲歌手。")
+                        search_content = "%s %s" % (tag.artist, tag.title)
+                        album_url = get_album_url(tag, search_content, True)
+                else:
+                    logging.info("--专辑歌手不存在，查找歌曲歌手。")
+                    album_url = get_album_url(tag, search_content)
+                if album_url == "":
+                    logger.warning("未找到曲目:%s" % search_content)
+                else:
+                    success = update_album_info(tag, album_url) & update_song_info(tag, new_artist)
+
         except IOError:
             logger.warning("打开文件失败！")
         finally:
@@ -358,7 +370,8 @@ def update_audio_tag():
                 # version=eyed3.id3.ID3_DEFAULT_VERSION, encoding='utf-8')
                 shutil.move(os.path.join(FILE_PATH, file_name), os.path.join(DONE_PATH, file_name))
                 logger.info("标签写入完毕，文件移动至子目录下。")
-
+            else:
+                logger.info("标签写入失败，请手动处理")
             logger.info("当前文件'%s'处理完毕。" % file_name)
             logging.info('----------------------------------------------------'
                          '-----------------------------------------------')
