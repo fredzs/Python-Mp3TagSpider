@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 
 from Service.ConfigService import ConfigService
 from Service.NetworkService import NetworkService
-from Utility.Const import Const
+from Utility.Const import *
 ##########################################################################
 warnings.filterwarnings("ignore")
 ConfigService().init()
@@ -80,7 +80,7 @@ def get_album_details(song_title, song_album, album_url):
 
 # return result, album_url, new_artist
 def locate_song(soup_song_list, song_info, search_strictly=True, search_times=10):
-    result = Const.NOT_FOUND
+    result = Path.NOT_FOUND
     album_url = ""
     new_artist = {}
     for i, line in enumerate(soup_song_list[:search_times - 1]):
