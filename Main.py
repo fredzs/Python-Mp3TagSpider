@@ -1,35 +1,36 @@
 #!user/bin/env python3
 # -*- coding: gbk -*-
 import logging
-import os
 import re
-import shutil
 import warnings
 from datetime import datetime
 from logging.config import fileConfig
 from time import sleep
 
 import eyed3
+import os
 from bs4 import BeautifulSoup
 
+from Entity.SongInfo import SongInfo
 from Service.ConfigService import ConfigService
 from Service.NetworkService import NetworkService
+from Utility import FileOperator
 from Utility.Const import *
 ##########################################################################
 warnings.filterwarnings("ignore")
 ConfigService().init()
 fileConfig('logging_config.ini')
 logger = logging.getLogger()
-
 ##########################################################################
 
 
 def check_tag_complete(tag):
-    pass_this = False
+    pass_this = True
     recording_date = tag.recording_date
-    if recording_date is not None:
+    if recording_date is None:
+        pass_this = pass_this * False
+    else:
         logging.info("发布日期(%s)完整，跳过。" % recording_date)
-        pass_this = True
 
     return pass_this
 
@@ -79,7 +80,7 @@ def get_album_details(song_title, song_album, album_url):
 
 
 # return result, album_url, new_artist
-def locate_song(soup_song_list, song_info, search_strictly=True, search_times=10):
+def locate_song(soup_song_list, song_info, search_strictly=True, search_times=Const.DEFAULT_SEARCH_TIMES):
     result = Path.NOT_FOUND
     album_url = ""
     new_artist = {}
@@ -151,7 +152,7 @@ def locate_song_list(search_content):
 
 
 # return album_url, new_artist
-def get_album_url(tag, search_content, has_album_artist=False):
+def get_album_url(song_info, search_content):
     soup_song_list = locate_song_list(search_content)
     if soup_song_list is None:
         return Const.NOT_FOUND, ""
@@ -214,71 +215,74 @@ def update_album_info(tag, album_url):
 
 
 def update_audio_tag():
-    for file_name in filter(lambda x: x.endswith(".mp3"), os.listdir(FILE_PATH)):
-        result = "Failed"
+    """循环遍历MP3目录下的.mp3文件，更新歌曲标签。"""
+    for file_name in filter(lambda x: x.endswith(".mp3"), os.listdir(Path.FILE_PATH)):
+        status_code = StatusCode.SUCCESS
+        search_result = SearchResultCode.NOT_FOUND
         logging.info("文件名称：'%s'。" % file_name)
-        file_path = os.path.join(FILE_PATH, file_name)
-        new_artist = {}
+        file_path = os.path.join(Path.FILE_PATH, file_name)
         try:
             audio_file = eyed3.load(file_path)
             if audio_file is None:
-                raise IOError
+                raise CustomException.OpenFileError
 
             tag = audio_file.tag
+            song_info = SongInfo(tag)
             pass_this = False  # check_tag_complete(tag)
             if pass_this:
                 logging.info("歌曲标签完整，跳过。")
                 continue
             else:
-                if tag.artist is None:
+                if song_info.song_artist is None:
                     search_content = file_name
                 else:
-                    search_content = "%s %s" % (tag.artist, tag.title)
-                if tag.album_artist is not None:
-                    if tag.album_artist.lower() != tag.artist.lower():
+                    search_content = "%s %s" % (song_info.song_artist, song_info.song_title)
+                if song_info.has_album_artist():
+                    if song_info.same_sa_and_aa():
                         logging.info("--专辑歌手存在，优先查找。")
-                        search_content = "%s %s" % (tag.album_artist, tag.title)
-                        album_url, new_artist = get_album_url(tag, search_content, True)
-                        if album_url == "":
+                        search_content = "%s %s" % (song_info.album_artist, song_info.title)
+                        search_result = get_album_url(song_info, search_content)
+                        if search_result == SearchResultCode.NOT_FOUND:
                             logging.info("--查找专辑歌手无匹配，查找歌曲歌手。")
-                            search_content = "%s %s" % (tag.artist, tag.title)
-                            album_url, new_artist = get_album_url(tag, search_content, True)
+                            search_content = "%s %s" % (song_info.artist, song_info.title)
+                            search_result = get_album_url(song_info, search_content)
                     else:
                         logging.info("--专辑歌手与歌曲歌手相同，查找歌曲歌手。")
-                        album_url, new_artist = get_album_url(tag, search_content)
+                        search_result = get_album_url(song_info, search_content)
                 else:
                     logging.info("--专辑歌手不存在，查找歌曲歌手。")
-                    album_url, new_artist = get_album_url(tag, search_content)
+                    search_result = get_album_url(song_info, search_content)
 
-                if album_url == "":
+                if search_result == SearchResultCode.NOT_FOUND:
                     logger.warning("未找到曲目:%s" % search_content)
-                elif len(new_artist) == 0:
-                    result = update_album_info(tag, album_url)
+                elif song_info.update_song_info():
+                    result = update_album_info(tag, song_info) & update_song_info(tag, song_info)
                 else:
-                    result = update_album_info(tag, album_url) & update_song_info(tag, new_artist)
+                    result = update_album_info(tag, song_info)
 
-        except IOError:
-            logger.warning("打开文件失败！")
+        except CustomException.OpenFileError:
+            logger.error("打开文件失败！")
+            result_path = StatusCode.FAILED
+        except Exception as e:
+            logger.error(e)
         finally:
-            result_path = MOVE_PATH.get(result,'Failed')
-            if (result == 'Done') | (result == 'Check'):
+            result_path = Path.MOVE_PATH.get(status_code)
+            if search_result == StatusCode.SUCCESS:
                 try:
                     tag.save()
                 except Exception as e:
                     logger.warning("文件保存失败: %s" % e)
-            if result == 'Failed':
-                logger.info("标签更新失败，请手动处理")
-            shutil.move(os.path.join(FILE_PATH, file_name), os.path.join(result_path, file_name))
-            logger.info("当前文件'%s'处理完毕,文件移动至%s目录下。" % (file_name,result_path))
+                finally:
+                    FileOperator.move_file(file_name, Path.FILE_PATH, result_path)
+            if search_result == StatusCode.FAILED:
+                logger.error("标签更新失败，请手动处理")
+
             logging.info('----------------------------------------------------'
                          '-----------------------------------------------')
             sleep(2)
 
 
 if "__main__" == __name__:
-    if not os.path.exists(DONE_PATH):
-        os.makedirs(DONE_PATH)
-
     logging.info('-------------------------------------------'
                  '程序开始执行-------------------------------------------')
     update_audio_tag()
