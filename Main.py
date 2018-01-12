@@ -1,27 +1,27 @@
 #!user/bin/env python3
 # -*- coding: gbk -*-
-import os
-import shutil
-import re
 import logging
-from logging.config import fileConfig
+import os
+import re
+import shutil
 import warnings
+from datetime import datetime
+from logging.config import fileConfig
+from time import sleep
+
 import eyed3
 from bs4 import BeautifulSoup
-from datetime import datetime
-from time import sleep
+
 from Service.ConfigService import ConfigService
 from Service.NetworkService import NetworkService
-
+from Utility.Const import Const
 ##########################################################################
 warnings.filterwarnings("ignore")
 ConfigService().init()
 fileConfig('logging_config.ini')
 logger = logging.getLogger()
+
 ##########################################################################
-FILE_PATH = 'mp3/'
-DONE_PATH = 'mp3/Done/'
-KEY_TAGS = {"title", "album_artist", "song_artist", "album"}
 
 
 def check_tag_complete(tag):
@@ -78,8 +78,9 @@ def get_album_details(song_title, song_album, album_url):
         return album_year, disc_and_track
 
 
+# return result, album_url, new_artist
 def locate_song(soup_song_list, song_info, search_strictly=True, search_times=10):
-    found = False
+    result = Const.NOT_FOUND
     album_url = ""
     new_artist = {}
     for i, line in enumerate(soup_song_list[:search_times - 1]):
@@ -100,15 +101,15 @@ def locate_song(soup_song_list, song_info, search_strictly=True, search_times=10
             song_info_web["album_artist"] = match.group(1).strip()
             song_info_web["song_artist"] = match.group(2).strip().replace(";", " ")
             for key in artist_for_new[1:]:
-                new_artist_str = new_artist_str + key.text + ";"
-            if new_artist_str.endswith(";"):
-                new_artist_str = new_artist_str[:-1]
+                new_artist_str = new_artist_str + key.text + "; "
+            if new_artist_str.endswith("; "):
+                new_artist_str = new_artist_str[:-2]
         else:
             song_info_web["album_artist"] = ""
             song_info_web["song_artist"] = artist_str
         song_info_web["album"] = soup_album.text.replace("《", "").replace("》", "")
 
-        for key in KEY_TAGS:
+        for key in Const.KEY_TAGS:
             if key in song_info:
                 if song_info_web[key].lower() == song_info[key].lower():
                     flag[key] = 1
@@ -119,25 +120,26 @@ def locate_song(soup_song_list, song_info, search_strictly=True, search_times=10
                 continue
             if len(flag) == len(song_info):
                 logger.info("------第%s次匹配成功（Title、Artist和Album标签完全匹配，定位准确）" % count)
-                found = True
+                result = Const.DONE
         else:
             if len(flag) < len(song_info) - 1:
                 continue
             if len(flag) == len(song_info) - 1:
                 logger.info("------第%s次匹配成功！（标签未完全匹配，请关注）" % count)
-                found = True
+                result = Const.CHECK
                 if ("title" in flag) & ("album" in flag):
                     if song_info_web["album_artist"].lower() == song_info["song_artist"].lower():
                         new_artist['new_song_artist'] = new_artist_str
                         new_artist['new_album_artist'] = song_info_web["album_artist"]
+                        logger.info("------抓取到新的专辑歌手信息，同时更新。")
 
         album_url = soup_album['href']
-        found = True
         break
 
-    return found, album_url, new_artist
+    return result, album_url, new_artist
 
 
+# return soup_song_list
 def locate_song_list(search_content):
     r = NetworkService.get_song_info_html(search_content)
     soup = BeautifulSoup(r, 'html.parser')
@@ -148,10 +150,11 @@ def locate_song_list(search_content):
     return soup_song_list
 
 
+# return album_url, new_artist
 def get_album_url(tag, search_content, has_album_artist=False):
     soup_song_list = locate_song_list(search_content)
     if soup_song_list is None:
-        return False, ""
+        return Const.NOT_FOUND, ""
 
     song_info = {"title": tag.title, "song_artist": tag.artist.replace(chr(0), ' ')}
     if has_album_artist:
@@ -159,11 +162,11 @@ def get_album_url(tag, search_content, has_album_artist=False):
     if tag.album is not None:
         song_info["album"] = tag.album
     logger.info("----严格模式启用。")
-    found, album_url, new_artist = locate_song(soup_song_list, song_info)
-    if not found:
+    result, album_url, new_artist = locate_song(soup_song_list, song_info)
+    if result == 'NOT_FOUND':
         logger.info("----严格模式未找到歌曲，尝试模糊查询。")
-        found, album_url, new_artist = locate_song(soup_song_list, song_info, False)
-    if not found:
+        result, album_url, new_artist = locate_song(soup_song_list, song_info, False)
+    if result == 'NOT_FOUND':
         logger.info("----模糊查询未找到歌曲。")
     return album_url, new_artist
 
@@ -183,7 +186,7 @@ def update_song_info(tag, new_artist):
 
 
 def update_album_info(tag, album_url):
-    result = False
+    result = 'NOT_FOUND'
     try:
         if album_url != "":
             year_str, disc_and_track = get_album_details(tag.title, tag.album, album_url)
@@ -194,7 +197,7 @@ def update_album_info(tag, album_url):
                 raise Exception
             else:
                 logger.info("写入日期(%s)成功。" % tag.recording_date)
-                result = True
+                result = 'DONE'
 
             tag.track_num = (disc_and_track["track"], disc_and_track["track_total"])
             tag.disc_num = (disc_and_track["disc"], disc_and_track["disc_total"])
@@ -212,7 +215,7 @@ def update_album_info(tag, album_url):
 
 def update_audio_tag():
     for file_name in filter(lambda x: x.endswith(".mp3"), os.listdir(FILE_PATH)):
-        success = False
+        result = "Failed"
         logging.info("文件名称：'%s'。" % file_name)
         file_path = os.path.join(FILE_PATH, file_name)
         new_artist = {}
@@ -222,7 +225,7 @@ def update_audio_tag():
                 raise IOError
 
             tag = audio_file.tag
-            pass_this = check_tag_complete(tag)
+            pass_this = False  # check_tag_complete(tag)
             if pass_this:
                 logging.info("歌曲标签完整，跳过。")
                 continue
@@ -250,20 +253,23 @@ def update_audio_tag():
                 if album_url == "":
                     logger.warning("未找到曲目:%s" % search_content)
                 elif len(new_artist) == 0:
-                    success = update_album_info(tag, album_url)
+                    result = update_album_info(tag, album_url)
                 else:
-                    success = update_album_info(tag, album_url) & update_song_info(tag, new_artist)
+                    result = update_album_info(tag, album_url) & update_song_info(tag, new_artist)
 
         except IOError:
             logger.warning("打开文件失败！")
         finally:
-            if success:
-                tag.save()
-                shutil.move(os.path.join(FILE_PATH, file_name), os.path.join(DONE_PATH, file_name))
-                logger.info("标签写入完毕，文件移动至子目录下。")
-            else:
-                logger.info("标签写入失败，请手动处理")
-            logger.info("当前文件'%s'处理完毕。" % file_name)
+            result_path = MOVE_PATH.get(result,'Failed')
+            if (result == 'Done') | (result == 'Check'):
+                try:
+                    tag.save()
+                except Exception as e:
+                    logger.warning("文件保存失败: %s" % e)
+            if result == 'Failed':
+                logger.info("标签更新失败，请手动处理")
+            shutil.move(os.path.join(FILE_PATH, file_name), os.path.join(result_path, file_name))
+            logger.info("当前文件'%s'处理完毕,文件移动至%s目录下。" % (file_name,result_path))
             logging.info('----------------------------------------------------'
                          '-----------------------------------------------')
             sleep(2)
