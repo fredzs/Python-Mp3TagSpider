@@ -7,7 +7,7 @@ from Main import logger
 
 class FileOperator():
     @staticmethod
-    def move_file(self, file_name, source_path, destination_path):
+    def move_file(file_name, source_path, destination_path):
         if not os.path.exists(destination_path):
             os.makedirs(destination_path)
         try:

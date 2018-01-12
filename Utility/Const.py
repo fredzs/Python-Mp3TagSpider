@@ -11,6 +11,7 @@ class SearchResultCode():
     DONE = 'DONE'
     CHECK = 'CHECK'
     NOT_FOUND = 'NOT_FOUND'
+    FOUND = 'FOUND'
 
 
 class StatusCode:
