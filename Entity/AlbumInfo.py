@@ -4,91 +4,104 @@ from datetime import datetime
 
 class AlbumInfo(object):
     def __init__(self, tag):
-        self.song_title = tag.title
+        self._song_title = tag.title
 
         if tag.album is not None:
-            self.__album_title = tag.album
+            self._album_title = tag.album
         else:
-            self.__album_title = ""
+            self._album_title = ""
 
         if tag.album_artist is not None:
-            self.__album_artist = self.artist_to_list(tag.album_artist)
+            self._album_artist = self.tag_to_list(tag.album_artist)
         else:
-            self.__album_artist = []
+            self._album_artist = []
 
-        self.album_date = datetime.strptime("1900-01-01", "%Y-%m-%d")
-        self.new_album_artist = []
-        self.new_song_artist = []
-        self.album_url = ""
-        self.disc_num = (1, 1)
-        self.track_num = (1, 1)
+        self._album_date = datetime.strptime("1900-01-01", "%Y-%m-%d")
+        self._new_album_artist = []
+        self._new_song_artist = []
+        self._album_url = ""
+        self._disc_num = (1, 1)
+        self._track_num = (1, 1)
 
     def update_artists(self):
-        return True if len(self.new_album_artist) > 0 else False
+        return True if len(self._new_album_artist) > 0 else False
+
+    @property
+    def new_album_artist_str(self):
+        return '; '.join(self._new_album_artist)
+
+    @property
+    def new_song_artist_str(self):
+        return '; '.join(self._new_song_artist)
 
     @staticmethod
-    def artist_to_list(artist_str):
-        artist_list = []
-        # artist.replace(chr(0), ' ')
+    def tag_to_list(artist_str):
+        artist_list = artist_str.split(chr(0))
         return artist_list
 
     @property
+    def song_title(self):
+        return self._song_title
+
+    @property
     def album_title(self):
-        return self.album_title
+        return self._album_title
 
     @property
     def album_artist(self):
-        return self.album_artist
+        return self._album_artist
 
     @property
     def album_date(self):
-        return self.album_date
+        return self._album_date
 
     @property
     def album_date_str(self):
-        return str(self.album_date)
+        return str(self._album_date)
 
     @album_date.setter
     def album_date(self, album_date):
-        self.album_date = album_date
+        if isinstance(album_date, datetime):
+            self._album_date = album_date
+        elif isinstance(album_date, str):
+            self._album_date = datetime.strptime(album_date, "%Y-%m-%d")
 
     @property
     def new_album_artist(self):
-        return self.new_album_artist
+        return self._new_album_artist
 
     @new_album_artist.setter
     def new_album_artist(self, new_album_artist):
-        self.new_album_artist.extend(new_album_artist)
+        self._new_album_artist.extend(new_album_artist)
 
     @property
     def new_song_artist(self):
-        return self.new_song_artist
+        return self._new_song_artist
 
     @new_song_artist.setter
     def new_song_artist(self, new_song_artist):
-        self.new_song_artist.extend(new_song_artist)
+        self._new_song_artist.extend(new_song_artist)
 
     @property
     def album_url(self):
-        return self.album_url
+        return self._album_url
 
     @album_url.setter
     def album_url(self, album_url):
-        self.album_url = album_url
+        self._album_url = album_url
 
     @property
     def disc_num(self):
-        return self.disc_num
+        return self._disc_num
 
     @disc_num.setter
     def disc_num(self, disc_num):
-        self.disc_num = disc_num
+        self._disc_num = disc_num
 
     @property
     def track_num(self):
-        return self.track_num
+        return self._track_num
 
     @track_num.setter
     def track_num(self, track_num):
-        self.track_num = track_num
-
+        self._track_num = track_num
