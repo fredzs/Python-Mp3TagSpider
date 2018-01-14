@@ -4,7 +4,8 @@
 
 class Path:
     FILE_PATH = 'mp3/'
-    MOVE_PATH = {'DONE': 'mp3/Done/', 'CHECK': 'mp3/Check/', 'NOT_FOUND': 'mp3/', 'FAILED': 'mp3/Failed', 'UPDATE': 'mp3/Update'}
+    MOVE_PATH = {'DONE': 'mp3/Done/', 'CHECK': 'mp3/Check/', 'NOT_FOUND': 'mp3/Not_Found', 'FAILED': 'mp3/Failed',
+                 'UPDATE': 'mp3/Update'}
 
 
 class SearchResultCode:
@@ -27,4 +28,3 @@ class Const:
 
 class CustomException:
     OpenFileError = ("-1", "文件打开失败！")
-

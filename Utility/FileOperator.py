@@ -1,13 +1,13 @@
 #
 import os
 import shutil
+import logging
 
-from Main import logger
 
-
-class FileOperator():
+class FileOperator(object):
     @staticmethod
     def move_file(file_name, source_path, destination_path):
+        logger = logging.getLogger()
         if not os.path.exists(destination_path):
             os.makedirs(destination_path)
         try:

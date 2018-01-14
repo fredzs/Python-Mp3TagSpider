@@ -14,7 +14,7 @@ from Entity.SongInfo import SongInfo
 from Entity.AlbumInfo import AlbumInfo
 from Service.ConfigService import ConfigService
 from Service.NetworkService import NetworkService
-import Utility.FileOperator
+from Utility.FileOperator import FileOperator
 from Utility.Const import *
 from Utility.ListFunc import ListFunc
 ##########################################################################
@@ -23,6 +23,16 @@ ConfigService().init()
 fileConfig('logging_config.ini')
 logger = logging.getLogger()
 ##########################################################################
+
+
+def print_search_progress(flag, song_info, song_info_web):
+    logger.info("flag: %s" % flag.keys())
+    for key in Const.COMPARE_TAGS:
+        if key not in flag:
+            attr = getattr(song_info, key)
+            # if isinstance(attr, list) and isinstance(song_info_web[key], list):
+            logger.info("%15s: `%s`" % (key, attr))
+            logger.info("%11s_web: `%s`" % (key, song_info_web[key]))
 
 
 def check_tag_complete(tag):
@@ -93,8 +103,8 @@ def locate_song(soup_song_list, song_info, album_info, search_strictly=True, sea
             new_artist_list = []
             soup_title = line.find_all('td', class_="song_name")[0].find_all('a')
             soup_album = line.find_all('td', class_='song_album')[0].find_all('a')[0]
-            song_info_web["song_title"] = soup_title[1]['title'] if soup_title[0]['title'] == "该艺人演唱的其他版本" else soup_title[0][
-                'title']
+            song_info_web["song_title"] = soup_title[1]['title'].strip() if soup_title[0]['title'] == "该艺人演唱的其他版本" else soup_title[0][
+                'title'].strip()
             artist_str = line.find_all('td', class_='song_artist')[0].text.strip()
             artist_str = artist_str.replace('\r', '').replace('\t', '').replace('(\n', '(').replace('\n)', ')').replace('\n', ';')
 
@@ -134,6 +144,7 @@ def locate_song(soup_song_list, song_info, album_info, search_strictly=True, sea
                     continue
                 if len(flag) == song_info.valid_tag_amount() - 1:
                     logger.info("------第%s次匹配成功！（标签未完全匹配，请关注）" % count)
+                    print_search_progress(flag, song_info, song_info_web)
                     search_result = SearchResultCode.CHECK
                     if ("song_title" in flag) & ("album_title" in flag):
                         if ListFunc.compare_2_lists(song_info_web["album_artist"], song_info.song_artist):
@@ -282,11 +293,11 @@ def update_audio_tag():
             if status_code == StatusCode.SUCCESS:
                 result_path = Path.MOVE_PATH.get(search_result)
                 try:
-                    tag.save()
+                    tag.save(preserve_file_time=True)
                 except Exception as e:
                     logger.warning("文件保存失败: %s" % e)
                 finally:
-                    Utility.FileOperator.FileOperator.move_file(file_name, Path.FILE_PATH, result_path)
+                    FileOperator.move_file(file_name, Path.FILE_PATH, result_path)
             if status_code == StatusCode.FAILED:
                 logger.error("标签更新失败，请手动处理")
 

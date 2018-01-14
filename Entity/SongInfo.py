@@ -25,6 +25,14 @@ class SongInfo(object):
             artist_list = artist_str.split(';')
         else:
             artist_list = artist_str.split(chr(0))
+        for j, artist in enumerate(artist_list):
+            for i in range(len(artist)):
+                if artist[i] == ' ':
+                    artist_list[j] = artist[1:]
+                    continue
+                else:
+                    break
+
         return artist_list
 
     def valid_tag_amount(self):
