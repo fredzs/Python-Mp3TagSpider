@@ -5,20 +5,20 @@
 class Path:
     FILE_PATH = 'mp3/'
     MOVE_PATH = {'DONE': 'mp3/Done/', 'CHECK': 'mp3/Check/', 'NOT_FOUND': 'mp3/Not_Found', 'FAILED': 'mp3/Failed',
-                 'UPDATE': 'mp3/Update'}
+                 'UPDATE': 'mp3/Update', 'WRONG_VERSION': 'mp3/WrongVersion'}
 
 
 class SearchResultCode:
     DONE = 'DONE'
     CHECK = 'CHECK'
     NOT_FOUND = 'NOT_FOUND'
-    FOUND = 'FOUND'
     UPDATE = "UPDATE"
 
 
 class StatusCode:
     SUCCESS = 'SUCCESS'
     FAILED = 'FAILED'
+    WRONG_VERSION = 'WRONG_VERSION'
 
 
 class Const:
