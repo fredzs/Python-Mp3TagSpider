@@ -16,7 +16,7 @@ class Statistic(object):
             self._search_result[key] = self._search_result.get(key) + 1
 
     def get_sum(self):
-        sum = 0
+        amount = 0
         for key in self._search_result.keys():
-            sum += self.get_search_result(key)
-        return sum
+            amount += self.get_search_result(key)
+        return amount

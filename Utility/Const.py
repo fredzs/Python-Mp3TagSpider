@@ -28,3 +28,4 @@ class Const:
 
 class CustomException:
     OpenFileError = ("-1", "文件打开失败！")
+    SaveFileError = ("-2", "文件保存失败！")
