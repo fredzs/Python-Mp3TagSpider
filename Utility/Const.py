@@ -22,7 +22,7 @@ class StatusCode:
 
 
 class Const:
-    DEFAULT_SEARCH_TIMES = 10
+    DEFAULT_SEARCH_TIMES = 12
     COMPARE_TAGS = {"song_title", "album_artist", "song_artist", "album_title"}
 
 
