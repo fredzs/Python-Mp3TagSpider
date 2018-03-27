@@ -23,5 +23,8 @@ class NetworkService(object):
         raw_url = Config.get_config_field()["search_url"] + search_content
         url = parse.quote_plus(raw_url, safe=':/?=')
         logging.info("访问地址：%s" % url)
-        item_html = requests.get(url, headers=NetworkService.headers).text
+        try:
+            item_html = requests.get(url, headers=NetworkService.headers).text
+        except Exception as e:
+            raise e
         return item_html
