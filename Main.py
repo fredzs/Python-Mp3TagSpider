@@ -1,5 +1,5 @@
 #!user/bin/env python3
-# -*- coding: gbk -*-
+
 import logging
 import re
 import warnings
@@ -23,9 +23,10 @@ from Utility.ListFunc import ListFunc
 warnings.filterwarnings("ignore")
 ConfigService().init()
 fileConfig('logging_config.ini')
+
+logging.getLogger("eyed3.mp3.headers").setLevel(logging.CRITICAL)
+logging.getLogger("eyed3").setLevel(logging.CRITICAL)
 logger = logging.getLogger()
-
-
 ##########################################################################
 
 
@@ -35,7 +36,10 @@ def print_search_progress(flag, song_info, song_info_web):
         if key not in flag:
             attr = getattr(song_info, key)
             # if isinstance(attr, list) and isinstance(song_info_web[key], list):
-            logger.info("%15s: `%s`" % (key, attr))
+            try:
+                logger.info("%15s: `%s`" % (key, attr))
+            except UnicodeEncodeError as e:
+                logger.info("%15s:" % key)
             logger.info("%11s_web: `%s`" % (key, song_info_web[key]))
 
 
@@ -45,13 +49,17 @@ def check_tag_complete(tag):
     if recording_date is None:
         pass_this = pass_this * False
     else:
-        logger.info("·¢²¼ÈÕÆÚ(%s)ÍêÕû£¬Ìø¹ı¡£" % recording_date)
+        logger.info("å‘å¸ƒæ—¥æœŸ(%s)å®Œæ•´ï¼Œè·³è¿‡ã€‚" % recording_date)
 
     return pass_this
 
 
 def get_album_details(album_info):
-    logger.info("ÕÒµ½×¨¼­¡¶%s¡·£¬½øÈë %s ×¥È¡" % (album_info.song_title, album_info.album_url))
+    try:
+        logger.info("æ‰¾åˆ°ä¸“è¾‘ã€Š%sã€‹ï¼Œè¿›å…¥ %s æŠ“å–" % (album_info.album_title, album_info.album_url))
+    except UnicodeEncodeError as e:
+        logger.info("æ‰¾åˆ°ä¸“è¾‘ï¼Œè¿›å…¥ %s æŠ“å–" % album_info.album_url)
+
     disc_total = 1
     disc = 1
     track_total = 1
@@ -63,8 +71,8 @@ def get_album_details(album_info):
         soup_album = BeautifulSoup(html, 'html.parser')
         soup_album_main_info = soup_album.find_all("div", id="album_info")[0]
         album_year_string = soup_album_main_info.find_all("table")[0].find_all("tr")[3].find_all("td")[1].text
-        album_year = album_year_string.replace('Äê', '-').replace('ÔÂ', '-').replace('ÈÕ', '')
-        logger.info("×¨¼­·¢ĞĞÊ±¼äÎª%s" % album_year_string)
+        album_year = album_year_string.replace('å¹´', '-').replace('æœˆ', '-').replace('æ—¥', '')
+        logger.info("ä¸“è¾‘å‘è¡Œæ—¶é—´ä¸º%s" % album_year_string)
 
         disc_total = len(soup_album.find_all("strong", class_="trackname"))
         soup_track_list = soup_album.find_all("table", class_="track_list")[0].find_all("tr")[1:]
@@ -85,10 +93,10 @@ def get_album_details(album_info):
                     track_total += 1
                 else:
                     break
-        logger.info("×¨¼­¹²ÓĞ%dÕÅµú£¬¸èÇú%sÎªµÚ%dÕÅµúµÄµÚ%dÊ×£¬¸ÃÕÅµú¹²ÓĞ%dÊ×¡£" % (disc_total, album_info.song_title,
+        logger.info("ä¸“è¾‘å…±æœ‰%då¼ ç¢Ÿï¼Œæ­Œæ›²%sä¸ºç¬¬%då¼ ç¢Ÿçš„ç¬¬%dé¦–ï¼Œè¯¥å¼ ç¢Ÿå…±æœ‰%dé¦–ã€‚" % (disc_total, album_info.song_title,
                                                             disc, track, track_total))
     except Exception as e:
-        logger.warning("³öÏÖ´íÎó£º%s" % e)
+        logger.warning("å‡ºç°é”™è¯¯ï¼š%s" % e)
         raise e
     finally:
         album_info.album_date = album_year
@@ -106,8 +114,12 @@ def locate_song(soup_song_list, song_info, album_info, search_strictly=True, sea
             new_artist_list = []
             soup_title = line.find_all('td', class_="song_name")[0].find_all('a')
             soup_album = line.find_all('td', class_='song_album')[0].find_all('a')[0]
-            song_info_web["song_title"] = soup_title[1]['title'].strip() if soup_title[0]['title'] == "¸ÃÒÕÈËÑİ³ªµÄÆäËû°æ±¾" else \
-                soup_title[0]['title'].strip()
+            song_info_web["song_title"] = soup_title[1]['title'].strip() if soup_title[0]['title'] == "è¯¥è‰ºäººæ¼”å”±çš„å…¶ä»–ç‰ˆæœ¬" else \
+                soup_title[0]['title'].strip() \
+                    .replace('(Album Version)', '') \
+                    .replace('(Single Version)', '') \
+                    .replace('(Main Version)', '') \
+                    .replace('(Studio Version)', '').strip()
             artist_str = line.find_all('td', class_='song_artist')[0].text.strip()
             artist_str = artist_str.replace('\r', '').replace('\t', '').replace('(\n', '(').replace('\n)', ')').replace(
                 '\n', ';')
@@ -122,9 +134,9 @@ def locate_song(soup_song_list, song_info, album_info, search_strictly=True, sea
                 for key1 in artist_for_new[1:]:
                     new_artist_list.append(key1.text)
             else:
-                song_info_web["album_artist"] = [artist_str] if song_info.same_sa_and_aa() else []
+                song_info_web["album_artist"] = []
                 song_info_web["song_artist"] = [artist_str]
-            song_info_web["album_title"] = soup_album.text.replace("¡¶", "").replace("¡·", "").strip()
+            song_info_web["album_title"] = soup_album.text.replace("ã€Š", "").replace("ã€‹", "").strip()
 
             for key2 in Const.COMPARE_TAGS:
                 if hasattr(song_info, key2):
@@ -136,31 +148,53 @@ def locate_song(soup_song_list, song_info, album_info, search_strictly=True, sea
                         if getattr(song_info, key2).lower() == song_info_web[key2].lower():
                             flag[key2] = 1
 
+            if (song_info_web["album_artist"] == []) & (song_info.same_sa_and_aa()):
+                flag["album_artist"] = 1
+                album_info.update_artists = True
+
             count = int(i + 1)
             if search_strictly:
-                if len(flag) < song_info.valid_tag_amount():
-                    continue
-                if len(flag) == song_info.valid_tag_amount():
-                    logger.info("------µÚ%s´ÎÆ¥Åä³É¹¦£¨Title¡¢ArtistºÍAlbum±êÇ©ÍêÈ«Æ¥Åä£¬¶¨Î»×¼È·£©" % count)
+                len_song_info_web = len(song_info_web) if len(song_info_web["album_artist"]) > 0 else len(song_info_web) - 1
+                if len_song_info_web == len(flag) == song_info.valid_tag_amount():
+                    logger.info("------ç¬¬%sæ¬¡åŒ¹é…æˆåŠŸï¼ˆTitleã€Artistå’ŒAlbumæ ‡ç­¾å®Œå…¨åŒ¹é…ï¼Œå®šä½å‡†ç¡®ï¼‰" % count)
                     search_result = SearchResultCode.DONE
+                elif len_song_info_web > len(flag) == song_info.valid_tag_amount():
+                    if ("song_title" in flag) & ("album_title" in flag):
+                        if ListFunc.compare_2_lists(song_info_web["song_artist"], song_info.song_artist):
+                            album_info.new_album_artist.extend(song_info_web["album_artist"])
+                            album_info.update_album_artists = True
+                            logger.info("------æŠ“å–åˆ°æ–°çš„ä¸“è¾‘æ­Œæ‰‹ä¿¡æ¯ï¼ŒåŒæ—¶æ›´æ–°ã€‚")
+                            search_result = SearchResultCode.UPDATE
+                elif len_song_info_web == song_info.valid_tag_amount() > len(flag):
+                    if ("song_title" in flag) & ("album_title" in flag) & ("album_artist" in flag):
+                        album_info.new_song_artist.extend(new_artist_list)
+                        album_info.update_song_artists = True
+                        logger.info("------æŠ“å–åˆ°æ–°çš„æ­Œæ‰‹ä¿¡æ¯ï¼ŒåŒæ—¶æ›´æ–°ã€‚")
+                        search_result = SearchResultCode.UPDATE
+                elif len_song_info_web < song_info.valid_tag_amount() == len(flag):
+                    if ("song_title" in flag) & ("album_title" in flag) & ("song_artist" in flag):
+                        album_info.new_album_artist.extend(song_info_web["album_artist"])
+                        album_info.update_album_artists = True
+                        logger.info("------æŠ“å–åˆ°æ–°çš„æ­Œæ‰‹ä¿¡æ¯ï¼ŒåŒæ—¶æ›´æ–°ã€‚")
+                        search_result = SearchResultCode.UPDATE
+                else:
+                    pass
             else:
                 if len(flag) < song_info.valid_tag_amount() - 1:
-                    continue
+                    pass
                 if len(flag) == song_info.valid_tag_amount() - 1:
-                    logger.info("------µÚ%s´ÎÆ¥Åä³É¹¦£¡£¨±êÇ©Î´ÍêÈ«Æ¥Åä£¬Çë¹Ø×¢£©" % count)
+                    logger.info("------ç¬¬%sæ¬¡åŒ¹é…æˆåŠŸï¼ï¼ˆæ ‡ç­¾æœªå®Œå…¨åŒ¹é…ï¼Œè¯·å…³æ³¨ï¼‰" % count)
                     print_search_progress(flag, song_info, song_info_web)
                     search_result = SearchResultCode.CHECK
-                    if ("song_title" in flag) & ("album_title" in flag):
-                        if ListFunc.compare_2_lists(song_info_web["album_artist"], song_info.song_artist):
-                            album_info.new_song_artist.extend(new_artist_list)
-                            album_info.new_album_artist.extend(song_info_web["album_artist"])
-                            logger.info("------×¥È¡µ½ĞÂµÄ×¨¼­¸èÊÖĞÅÏ¢£¬Í¬Ê±¸üĞÂ¡£")
-                            search_result = SearchResultCode.UPDATE
 
-            album_info.album_url = soup_album['href']
-            break
+            if search_result == SearchResultCode.NOT_FOUND:
+                continue
+            else:
+                # è¿™é‡Œæœ‰å‘ï¼Œåçˆ¬è™«ï¼Œæ³¨æ„urlæ˜¯å¦å®Œæ•´ã€‚
+                album_info.album_url = "{}{}".format("http:", soup_album['href'])
+                break
     except Exception as e:
-        logger.warning("±êÇ©Æ¥Åä·¢Éú´íÎó£º%s" % e)
+        logger.warning("æ ‡ç­¾åŒ¹é…å‘ç”Ÿé”™è¯¯ï¼š%s" % e)
         raise e
     finally:
         return search_result
@@ -182,25 +216,31 @@ def get_album_url(song_info, album_info, search_content):
     search_result = SearchResultCode.NOT_FOUND
     soup_song_list = locate_song_list(search_content)
     if soup_song_list is not None:
-        logger.info("----ÑÏ¸ñÄ£Ê½ÆôÓÃ¡£")
+        logger.info("----ä¸¥æ ¼æ¨¡å¼å¯ç”¨ã€‚")
         search_result = locate_song(soup_song_list, song_info, album_info)
         if search_result == SearchResultCode.NOT_FOUND:
-            logger.info("----ÑÏ¸ñÄ£Ê½Î´ÕÒµ½¸èÇú£¬³¢ÊÔÄ£ºı²éÑ¯¡£")
+            logger.info("----ä¸¥æ ¼æ¨¡å¼æœªæ‰¾åˆ°æ­Œæ›²ï¼Œå°è¯•æ¨¡ç³ŠæŸ¥è¯¢ã€‚")
             search_result = locate_song(soup_song_list, song_info, album_info, False)
         if search_result == SearchResultCode.NOT_FOUND:
-            logger.info("----Ä£ºı²éÑ¯Î´ÕÒµ½¸èÇú¡£")
+            logger.info("----æ¨¡ç³ŠæŸ¥è¯¢æœªæ‰¾åˆ°æ­Œæ›²ã€‚")
     return search_result
 
 
 def update_artists(tag, album_info):
     try:
-        tag.artist = album_info.new_song_artist_str
-        tag.album_artist = album_info.new_album_artist_str
+        if album_info.update_song_artists:
+            logger.info("æ—§æ­Œæ‰‹ï¼š%sã€‚" % tag.artist)
+            logger.info("æ–°æ­Œæ‰‹ï¼š%sã€‚" % album_info.new_song_artist_str)
+            tag.artist = album_info.new_song_artist_str
+            logger.info("å†™å…¥æ–°æ­Œæ‰‹æˆåŠŸï¼")
+        if album_info.update_album_artists:
+            logger.info("æ—§ä¸“è¾‘æ­Œæ‰‹ï¼š%sã€‚" % tag.album_artist)
+            logger.info("æ–°ä¸“è¾‘æ­Œæ‰‹ï¼š%sã€‚" % album_info.new_album_artist_str)
+            tag.album_artist = album_info.new_album_artist_str
+            logger.info("å†™å…¥æ–°ä¸“è¾‘æ­Œæ‰‹æˆåŠŸï¼")
     except Exception as e:
-        logger.warning("Ğ´ÈëĞÂ¸èÊÖÊ§°Ü£º%s" % e)
+        logger.warning("å†™å…¥æ–°æ­Œæ‰‹å¤±è´¥ï¼š%s" % e)
         raise e
-    else:
-        logger.info("Ğ´ÈëĞÂ¸èÊÖ³É¹¦£¡")
 
 
 def update_album_info(tag, album_info):
@@ -214,15 +254,15 @@ def update_album_info(tag, album_info):
             if tag.recording_date.month is None:
                 raise Exception
             else:
-                logger.info("Ğ´ÈëÈÕÆÚ(%s)³É¹¦¡£" % tag.recording_date)
+                logger.info("å†™å…¥æ—¥æœŸ(%s)æˆåŠŸã€‚" % tag.recording_date)
 
             tag.track_num = album_info.track_num
             tag.disc_num = album_info.disc_num
-            logger.info("Ğ´ÈëÒô¹ìĞòºÅ³É¹¦¡£")
+            logger.info("å†™å…¥éŸ³è½¨åºå·æˆåŠŸã€‚")
         else:
             raise Exception
     except Exception as e:
-        logger.warning("Ğ´Èë×¨¼­ĞÅÏ¢´íÎó:%s" % e)
+        logger.warning("å†™å…¥ä¸“è¾‘ä¿¡æ¯é”™è¯¯:%s" % e)
         raise e
     else:
         search_result = SearchResultCode.DONE
@@ -230,14 +270,28 @@ def update_album_info(tag, album_info):
         return search_result
 
 
+def make_search_content(song_info, album_artist=True):
+    if album_artist:
+        search_content = "%s - %s - %s" % (song_info.album_artist_str(), song_info.song_artist_str(), song_info.song_title)
+    else:
+        if song_info.song_artist == [] and song_info.album_artist == []:
+            search_content = "%s %s" % (song_info.album_title, song_info.song_title)
+        elif song_info.song_artist is []:
+            search_content = "%s %s" % (song_info.album_artist_str(), song_info.song_title)
+        else:
+            search_content = "%s %s" % (song_info.song_artist_str(), song_info.song_title)
+
+    return search_content
+
+
 def update_audio_tag():
-    """Ñ­»·±éÀúMP3Ä¿Â¼ÏÂµÄ.mp3ÎÄ¼ş£¬¸üĞÂ¸èÇú±êÇ©¡£"""
+    """å¾ªç¯éå†MP3ç›®å½•ä¸‹çš„.mp3æ–‡ä»¶ï¼Œæ›´æ–°æ­Œæ›²æ ‡ç­¾ã€‚"""
     statistic = Statistic()
-    file_list = list(filter(lambda x: x.endswith(".mp3"), os.listdir(Path.FILE_PATH)))
+    file_list = list(filter(lambda x: x.endswith(".mp3") | x.endswith(".MP3"), os.listdir(Path.FILE_PATH)))
     for i, file_name in enumerate(file_list):
         status_code = StatusCode.SUCCESS
         search_result = SearchResultCode.NOT_FOUND
-        logger.info("(%s/%s)ÎÄ¼şÃû³Æ£º'%s'¡£" % (str(i+1), len(file_list), file_name))
+        logger.info("(%s/%s)æ–‡ä»¶åç§°ï¼š'%s'ã€‚" % (str(i + 1), len(file_list), file_name))
         file_path = os.path.join(Path.FILE_PATH, file_name)
         try:
             audio_file = eyed3.load(file_path)
@@ -245,52 +299,55 @@ def update_audio_tag():
                 raise CustomException.OpenFileError
 
             tag = audio_file.tag
+            if tag.title is None:
+                logger.warning("Titleç¼ºå¤±ï¼Œè·³è¿‡ï¼")
+                status_code = StatusCode.FAILED
+                continue
+            if tag.album is None:
+                logger.warning("Album_titleç¼ºå¤±ï¼Œè·³è¿‡ï¼")
+                status_code = StatusCode.FAILED
+                continue
             if tag.version != (1, 1, 0):
                 song_info = SongInfo(tag)
                 album_info = AlbumInfo(tag)
                 pass_this = False  # check_tag_complete(tag)
                 if pass_this:
-                    logger.info("¸èÇú±êÇ©ÍêÕû£¬Ìø¹ı¡£")
+                    logger.info("æ­Œæ›²æ ‡ç­¾å®Œæ•´ï¼Œè·³è¿‡ã€‚")
                     continue
                 else:
-                    if song_info.song_artist is None:
-                        search_content = file_name
-                    else:
-                        search_content = "%s %s" % (song_info.song_artist_str(), song_info.song_title)
                     if song_info.has_album_artist():
                         if not song_info.same_sa_and_aa():
-                            logger.info("--×¨¼­¸èÊÖ´æÔÚ£¬ÓÅÏÈ²éÕÒ¡£")
-                            search_content = "%s %s" % (song_info.album_artist_str(), song_info.song_title)
+                            logger.info("--ä¸“è¾‘æ­Œæ‰‹å­˜åœ¨ï¼Œä¼˜å…ˆæŸ¥æ‰¾ã€‚")
+                            search_content = make_search_content(song_info)
                             search_result = get_album_url(song_info, album_info, search_content)
                             if search_result == SearchResultCode.NOT_FOUND:
-                                logger.info("--²éÕÒ×¨¼­¸èÊÖÎŞÆ¥Åä£¬²éÕÒ¸èÇú¸èÊÖ¡£")
-                                search_content = "%s %s" % (song_info.song_artist_str(), song_info.song_title)
+                                logger.info("--æŸ¥æ‰¾ä¸“è¾‘æ­Œæ‰‹æ— åŒ¹é…ï¼ŒæŸ¥æ‰¾æ­Œæ›²æ­Œæ‰‹ã€‚")
+                                search_content = make_search_content(song_info, False)
                                 search_result = get_album_url(song_info, album_info, search_content)
                         else:
-                            logger.info("--×¨¼­¸èÊÖÓë¸èÇú¸èÊÖÏàÍ¬£¬²éÕÒ¸èÇú¸èÊÖ¡£")
-                            # del song_info.album_artist
+                            logger.info("--ä¸“è¾‘æ­Œæ‰‹ä¸æ­Œæ›²æ­Œæ‰‹ç›¸åŒï¼ŒæŸ¥æ‰¾æ­Œæ›²æ­Œæ‰‹ã€‚")
+                            search_content = make_search_content(song_info, False)
                             search_result = get_album_url(song_info, album_info, search_content)
                     else:
-                        logger.info("--×¨¼­¸èÊÖ²»´æÔÚ£¬²éÕÒ¸èÇú¸èÊÖ¡£")
+                        logger.info("--ä¸“è¾‘æ­Œæ‰‹ä¸å­˜åœ¨ï¼ŒæŸ¥æ‰¾æ­Œæ›²æ­Œæ‰‹ã€‚")
+                        search_content = make_search_content(song_info, False)
                         search_result = get_album_url(song_info, album_info, search_content)
 
                     if search_result == SearchResultCode.NOT_FOUND:
-                        logger.warning("Î´ÕÒµ½ÇúÄ¿:%s" % search_content)
+                        logger.warning("æœªæ‰¾åˆ°æ›²ç›®:%s" % search_content)
                     else:
                         try:
-                            if album_info.update_artists():
-                                update_album_info(tag, album_info)
-                                update_artists(tag, album_info)
-                            else:
-                                update_album_info(tag, album_info)
+                            update_artists(tag, album_info)
+                            update_album_info(tag, album_info)
                         except Exception as e:
-                            logger.error("±êÇ©Ğ´Èë´íÎó£º%s" % e)
+                            logger.error("æ ‡ç­¾å†™å…¥é”™è¯¯ï¼š%s" % e)
+                            status_code = StatusCode.FAILED
                         else:
                             status_code = StatusCode.SUCCESS
             else:
                 status_code = StatusCode.WRONG_VERSION
         except CustomException.OpenFileError:
-            logger.error("´ò¿ªÎÄ¼şÊ§°Ü£¡")
+            logger.error("æ‰“å¼€æ–‡ä»¶å¤±è´¥ï¼")
             status_code = StatusCode.FAILED
         except Exception as e:
             logger.error(e)
@@ -299,32 +356,32 @@ def update_audio_tag():
             if status_code == StatusCode.SUCCESS:
                 result_path = Path.MOVE_PATH.get(search_result)
                 try:
-                    tag.save(preserve_file_time=True)
+                    tag.save(encoding='utf-8', preserve_file_time=True)
                 except Exception as e:
-                    logger.warning("ÎÄ¼ş±£´æÊ§°Ü: %s" % e)
+                    logger.warning("æ–‡ä»¶ä¿å­˜å¤±è´¥: %s" % e)
                 finally:
                     FileOperator.move_file(file_name, Path.FILE_PATH, result_path)
                     statistic.set_search_result(search_result)
             if status_code == StatusCode.WRONG_VERSION:
                 result_path = Path.MOVE_PATH.get(status_code)
                 FileOperator.move_file(file_name, Path.FILE_PATH, result_path)
-                logger.error("±êÇ©¸üĞÂÊ§°Ü£¬ÇëÊÖ¶¯´¦Àí")
+                logger.error("æ ‡ç­¾æ›´æ–°å¤±è´¥ï¼Œè¯·æ‰‹åŠ¨å¤„ç†")
             if status_code == StatusCode.FAILED:
                 result_path = Path.MOVE_PATH.get(status_code)
                 FileOperator.move_file(file_name, Path.FILE_PATH, result_path)
-                logger.error("±êÇ©¸üĞÂÊ§°Ü£¬ÇëÊÖ¶¯´¦Àí")
+                logger.error("æ ‡ç­¾æ›´æ–°å¤±è´¥ï¼Œè¯·æ‰‹åŠ¨å¤„ç†")
 
             logger.info('----------------------------------------------------'
                         '-----------------------------------------------')
             sleep(2)
-    logger.info("³ÌĞò¹²ÕûÀíÎÄ¼ş%d¸ö£¬ÆäÖĞ£º" % statistic.get_sum())
-    for key in ['DONE', 'CHECK', 'NOT_FOUND', "UPDATE"]:
-        logger.info("%s %d¸ö" % (key, statistic.get_search_result(key)))
+    logger.info("ç¨‹åºå…±æ•´ç†æ–‡ä»¶%dä¸ªï¼Œå…¶ä¸­ï¼š" % statistic.get_sum())
+    for key in ['DONE', "UPDATE", 'CHECK', 'NOT_FOUND', 'FAILED']:
+        logger.info("%s %dä¸ª" % (key, statistic.get_search_result(key)))
 
 
 if "__main__" == __name__:
     logger.info('-------------------------------------------'
-                '³ÌĞò¿ªÊ¼Ö´ĞĞ-------------------------------------------')
+                'ç¨‹åºå¼€å§‹æ‰§è¡Œ-------------------------------------------')
     update_audio_tag()
     logger.info('-------------------------------------------'
-                '³ÌĞòÖ´ĞĞ½áÊø-------------------------------------------')
+                'ç¨‹åºæ‰§è¡Œç»“æŸ-------------------------------------------')

@@ -22,17 +22,41 @@ class AlbumInfo(object):
         self._album_url = ""
         self._disc_num = (1, 1)
         self._track_num = (1, 1)
+        self._update_song_artists = False
+        self._update_album_artists = False
 
-    def update_artists(self):
-        return True if len(self._new_album_artist) > 0 else False
+    @property
+    def update_song_artists(self):
+        # return True if len(self._new_album_artist) > 0 else False
+        return self._update_song_artists
+
+    @update_song_artists.setter
+    def update_song_artists(self, update_song_artists):
+        self._update_song_artists = update_song_artists
+
+    @property
+    def update_album_artists(self):
+        return self._update_album_artists
+
+    @update_album_artists.setter
+    def update_album_artists(self, update_album_artists):
+        self._update_album_artists = update_album_artists
 
     @property
     def new_album_artist_str(self):
-        return '; '.join(self._new_album_artist)
+        if len(self._new_album_artist) == 0:
+            s = ""
+        else:
+            s = '; '.join(self._new_album_artist)
+        return s
 
     @property
     def new_song_artist_str(self):
-        return '; '.join(self._new_song_artist)
+        if len(self._new_song_artist) == 0:
+            s = ""
+        else:
+            s = '; '.join(self._new_song_artist)
+        return s
 
     @staticmethod
     def tag_to_list(artist_str):

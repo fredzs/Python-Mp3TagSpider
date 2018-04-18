@@ -17,3 +17,4 @@ class LogFactory(object):
         formatter = logging.Formatter('[%(levelname)s][%(filename)s][line:%(lineno)d] %(message)s')
         console.setFormatter(formatter)
         logging.getLogger('').addHandler(console)
+        logging.getLogger("eyed3.mp3.headers").setLevel(logging.CRITICAL)

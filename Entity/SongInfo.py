@@ -3,7 +3,10 @@
 
 class SongInfo(object):
     def __init__(self, tag):
-        self._song_title = tag.title
+        self._song_title = tag.title.replace('(Album Version)', '') \
+                    .replace('(Single Version)', '') \
+                    .replace('(Main Version)', '') \
+                    .replace('(Studio Version)', '').strip()
 
         if tag.artist is not None:
             self._song_artist = self.tag_to_list(tag.artist)
