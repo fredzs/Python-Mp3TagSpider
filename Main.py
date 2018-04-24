@@ -227,6 +227,7 @@ def get_album_url(song_info, album_info, search_content):
 
 
 def update_artists(tag, album_info):
+    status_code = StatusCode.FAILED
     try:
         if album_info.update_song_artists:
             logger.info("旧歌手：%s。" % tag.artist)
@@ -238,13 +239,14 @@ def update_artists(tag, album_info):
             logger.info("新专辑歌手：%s。" % album_info.new_album_artist_str)
             tag.album_artist = album_info.new_album_artist_str
             logger.info("写入新专辑歌手成功！")
+        status_code = StatusCode.SUCCESS
     except Exception as e:
         logger.warning("写入新歌手失败：%s" % e)
-        raise e
+    return status_code
 
 
 def update_album_info(tag, album_info):
-    search_result = SearchResultCode.NOT_FOUND
+    status_code = StatusCode.FAILED
     try:
         if album_info.album_url != "":
             get_album_details(album_info)
@@ -263,11 +265,10 @@ def update_album_info(tag, album_info):
             raise Exception
     except Exception as e:
         logger.warning("写入专辑信息错误:%s" % e)
-        raise e
     else:
-        search_result = SearchResultCode.DONE
+        status_code = StatusCode.SUCCESS
     finally:
-        return search_result
+        return status_code
 
 
 def make_search_content(song_info, album_artist=True):
@@ -336,14 +337,13 @@ def update_audio_tag():
                     if search_result == SearchResultCode.NOT_FOUND:
                         logger.warning("未找到曲目:%s" % search_content)
                     else:
-                        try:
-                            update_artists(tag, album_info)
-                            update_album_info(tag, album_info)
-                        except Exception as e:
-                            logger.error("标签写入错误：%s" % e)
-                            status_code = StatusCode.FAILED
+                        if update_artists(tag, album_info) == StatusCode.SUCCESS:
+                            if update_album_info(tag, album_info) == StatusCode.SUCCESS:
+                                status_code = StatusCode.SUCCESS
+                            else:
+                                status_code = StatusCode.FAILED
                         else:
-                            status_code = StatusCode.SUCCESS
+                            status_code = StatusCode.FAILED
             else:
                 status_code = StatusCode.WRONG_VERSION
         except CustomException.OpenFileError:
@@ -362,14 +362,16 @@ def update_audio_tag():
                 finally:
                     FileOperator.move_file(file_name, Path.FILE_PATH, result_path)
                     statistic.set_search_result(search_result)
-            if status_code == StatusCode.WRONG_VERSION:
-                result_path = Path.MOVE_PATH.get(status_code)
-                FileOperator.move_file(file_name, Path.FILE_PATH, result_path)
-                logger.error("标签更新失败，请手动处理")
-            if status_code == StatusCode.FAILED:
-                result_path = Path.MOVE_PATH.get(status_code)
-                FileOperator.move_file(file_name, Path.FILE_PATH, result_path)
-                logger.error("标签更新失败，请手动处理")
+            else:
+                if status_code == StatusCode.WRONG_VERSION:
+                    result_path = Path.MOVE_PATH.get(status_code)
+                    FileOperator.move_file(file_name, Path.FILE_PATH, result_path)
+                    logger.error("标签更新失败，请手动处理")
+                elif status_code == StatusCode.FAILED:
+                    result_path = Path.MOVE_PATH.get(status_code)
+                    FileOperator.move_file(file_name, Path.FILE_PATH, result_path)
+                    logger.error("标签更新失败，请手动处理")
+                statistic.set_search_result("FAILED")
 
             logger.info('----------------------------------------------------'
                         '-----------------------------------------------')
