@@ -21,6 +21,7 @@ class SongInfo(object):
             self._album_title = tag.album
         else:
             self._album_title = ""
+        self._new_song_title = ""
 
     @staticmethod
     def tag_to_list(artist_str):
@@ -77,3 +78,11 @@ class SongInfo(object):
     @property
     def album_title(self):
         return self._album_title
+
+    @property
+    def new_song_title(self):
+        return self._new_song_title
+
+    @new_song_title.setter
+    def new_song_title(self, new_song_title):
+        self._new_song_title = new_song_title

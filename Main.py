@@ -54,7 +54,7 @@ def check_tag_complete(tag):
     return pass_this
 
 
-def get_album_details(album_info):
+def get_album_details(album_info, song_info):
     try:
         logger.info("找到专辑《%s》，进入 %s 抓取" % (album_info.album_title, album_info.album_url))
     except UnicodeEncodeError as e:
@@ -66,6 +66,7 @@ def get_album_details(album_info):
     track = 1
     found = False
     album_year = ""
+    subtitle = ""
     try:
         html = NetworkService.get_year_html(album_info.album_url)
         soup_album = BeautifulSoup(html, 'html.parser')
@@ -83,6 +84,10 @@ def get_album_details(album_info):
                     if title.lower() == album_info.song_title.lower():
                         found = True
                         track_total = track
+                        # 处理中文副标题
+                        soup_show_title = tr.find_all("td", class_="song_name")[0].find_all("a", class_="show_zhcn")
+                        if len(soup_show_title) > 0:
+                            subtitle = soup_show_title[0].text
                     else:
                         track += 1
                 else:
@@ -102,6 +107,7 @@ def get_album_details(album_info):
         album_info.album_date = album_year
         album_info.track_num = (track, track_total)
         album_info.disc_num = (disc, disc_total)
+        song_info.new_song_title = subtitle
 
 
 # return result, album_url, new_artist
@@ -113,19 +119,16 @@ def locate_song(soup_song_list, song_info, album_info, search_strictly=True, sea
             flag = {}
             new_artist_list = []
             soup_title = line.find_all('td', class_="song_name")[0].find_all('a')
+            song_info_web["song_title"] = get_song_title_web(soup_title)
             soup_album = line.find_all('td', class_='song_album')[0].find_all('a')[0]
-            song_info_web["song_title"] = soup_title[1]['title'].strip() if soup_title[0]['title'] == "该艺人演唱的其他版本" else \
-                soup_title[0]['title'].strip() \
-                    .replace('(Album Version)', '') \
-                    .replace('(Single Version)', '') \
-                    .replace('(Main Version)', '') \
-                    .replace('(Studio Version)', '').strip()
+            song_info_web["album_title"] = soup_album.text.replace("《", "").replace("》", "").strip()
             artist_str = line.find_all('td', class_='song_artist')[0].text.strip()
             artist_str = artist_str.replace('\r', '').replace('\t', '').replace('(\n', '(').replace('\n)', ')').replace(
                 '\n', ';')
 
             artist_for_new = line.find_all('td', class_='song_artist')[0].find_all('a')
 
+            # 判断是否有多个song_artist
             pattern = re.compile("(.*)\((.*)\)(.*)")
             match = pattern.match(artist_str)
             if match:
@@ -133,11 +136,11 @@ def locate_song(soup_song_list, song_info, album_info, search_strictly=True, sea
                 song_info_web["song_artist"] = list(match.group(2).strip().split(";"))
                 for key1 in artist_for_new[1:]:
                     new_artist_list.append(key1.text)
-            else:
+            if (not match) or (artist_str in SkipArtist.SKIP_ARTIST):
                 song_info_web["album_artist"] = []
                 song_info_web["song_artist"] = [artist_str]
-            song_info_web["album_title"] = soup_album.text.replace("《", "").replace("》", "").strip()
 
+            # 1.匹配搜索结果
             for key2 in Const.COMPARE_TAGS:
                 if hasattr(song_info, key2):
                     attr = getattr(song_info, key2)
@@ -148,44 +151,13 @@ def locate_song(soup_song_list, song_info, album_info, search_strictly=True, sea
                         if getattr(song_info, key2).lower() == song_info_web[key2].lower():
                             flag[key2] = 1
 
+            # 判断是否需要更新album_artist
             if (song_info_web["album_artist"] == []) & (song_info.same_sa_and_aa()):
                 flag["album_artist"] = 1
                 album_info.update_artists = True
 
-            count = int(i + 1)
-            if search_strictly:
-                len_song_info_web = len(song_info_web) if len(song_info_web["album_artist"]) > 0 else len(song_info_web) - 1
-                if len_song_info_web == len(flag) == song_info.valid_tag_amount():
-                    logger.info("------第%s次匹配成功（Title、Artist和Album标签完全匹配，定位准确）" % count)
-                    search_result = SearchResultCode.DONE
-                elif len_song_info_web > len(flag) == song_info.valid_tag_amount():
-                    if ("song_title" in flag) & ("album_title" in flag):
-                        if ListFunc.compare_2_lists(song_info_web["song_artist"], song_info.song_artist):
-                            album_info.new_album_artist.extend(song_info_web["album_artist"])
-                            album_info.update_album_artists = True
-                            logger.info("------抓取到新的专辑歌手信息，同时更新。")
-                            search_result = SearchResultCode.UPDATE
-                elif len_song_info_web == song_info.valid_tag_amount() > len(flag):
-                    if ("song_title" in flag) & ("album_title" in flag) & ("album_artist" in flag):
-                        album_info.new_song_artist.extend(new_artist_list)
-                        album_info.update_song_artists = True
-                        logger.info("------抓取到新的歌手信息，同时更新。")
-                        search_result = SearchResultCode.UPDATE
-                elif len_song_info_web < song_info.valid_tag_amount() == len(flag):
-                    if ("song_title" in flag) & ("album_title" in flag) & ("song_artist" in flag):
-                        album_info.new_album_artist.extend(song_info_web["album_artist"])
-                        album_info.update_album_artists = True
-                        logger.info("------抓取到新的歌手信息，同时更新。")
-                        search_result = SearchResultCode.UPDATE
-                else:
-                    pass
-            else:
-                if len(flag) < song_info.valid_tag_amount() - 1:
-                    pass
-                if len(flag) == song_info.valid_tag_amount() - 1:
-                    logger.info("------第%s次匹配成功！（标签未完全匹配，请关注）" % count)
-                    print_search_progress(flag, song_info, song_info_web)
-                    search_result = SearchResultCode.CHECK
+            # 2.分析搜索结果
+            search_result = analyse_search_result(search_strictly, song_info_web, song_info, flag, album_info, new_artist_list, i + 1)
 
             if search_result == SearchResultCode.NOT_FOUND:
                 continue
@@ -198,6 +170,58 @@ def locate_song(soup_song_list, song_info, album_info, search_strictly=True, sea
         raise e
     finally:
         return search_result
+
+
+def analyse_search_result(search_strictly, song_info_web, song_info, flag, album_info, new_artist_list, count):
+    """分析搜索结果，判断最终状态"""
+    search_result = SearchResultCode.NOT_FOUND
+    if search_strictly:
+        len_song_info_web = len(song_info_web) if len(song_info_web["album_artist"]) > 0 else len(song_info_web) - 1
+        if len_song_info_web == len(flag) == song_info.valid_tag_amount():
+            logger.info("------第%s次匹配成功（Title、Artist和Album标签完全匹配，定位准确）" % count)
+            search_result = SearchResultCode.DONE
+        elif len_song_info_web > len(flag) == song_info.valid_tag_amount():
+            if ("song_title" in flag) & ("album_title" in flag):
+                if ListFunc.compare_2_lists(song_info_web["song_artist"], song_info.song_artist):
+                    album_info.new_album_artist.extend(song_info_web["album_artist"])
+                    album_info.update_album_artists = True
+                    logger.info("------抓取到新的专辑歌手信息，同时更新。")
+                    search_result = SearchResultCode.UPDATE
+        elif len_song_info_web == song_info.valid_tag_amount() > len(flag):
+            if ("song_title" in flag) & ("album_title" in flag) & ("album_artist" in flag):
+                album_info.new_song_artist.extend(new_artist_list)
+                album_info.update_song_artists = True
+                logger.info("------抓取到新的歌手信息，同时更新。")
+                search_result = SearchResultCode.UPDATE
+        elif len_song_info_web < song_info.valid_tag_amount() == len(flag):
+            if ("song_title" in flag) & ("album_title" in flag) & ("song_artist" in flag):
+                album_info.new_album_artist.extend(song_info_web["album_artist"])
+                album_info.update_album_artists = True
+                logger.info("------抓取到新的歌手信息，同时更新。")
+                search_result = SearchResultCode.UPDATE
+        else:
+            pass
+    else:
+        if len(flag) < song_info.valid_tag_amount() - 1:
+            pass
+        if len(flag) == song_info.valid_tag_amount() - 1:
+            logger.info("------第%s次匹配成功！（标签未完全匹配，请关注）" % count)
+            print_search_progress(flag, song_info, song_info_web)
+            search_result = SearchResultCode.CHECK
+
+    return search_result
+
+
+def get_song_title_web(soup_title):
+    if soup_title[0]['title'] == "该艺人演唱的其他版本":
+        song_title_web = soup_title[1]['title'].strip()
+    else:
+        song_title_web = soup_title[0]['title'].strip()
+        for strip_str in StripTitleStr.STRIP_STR:
+            song_title_web.replace(strip_str, '')
+        song_title_web = song_title_web.strip()
+
+    return song_title_web
 
 
 # return soup_song_list
@@ -245,11 +269,11 @@ def update_artists(tag, album_info):
     return status_code
 
 
-def update_album_info(tag, album_info):
+def update_album_info(tag, album_info, song_info):
     status_code = StatusCode.FAILED
     try:
         if album_info.album_url != "":
-            get_album_details(album_info)
+            get_album_details(album_info, song_info)
             song_date = album_info.album_date
             date = eyed3.core.Date(song_date.year, song_date.month, song_date.day)
             tag.recording_date = date
@@ -261,6 +285,10 @@ def update_album_info(tag, album_info):
             tag.track_num = album_info.track_num
             tag.disc_num = album_info.disc_num
             logger.info("写入音轨序号成功。")
+
+            if song_info.new_song_title != "":
+                tag.setTextFrame(b'TIT3', song_info.new_song_title)
+                logger.info("写入副标题(%s)成功。"% song_info.new_song_title)
         else:
             raise Exception
     except Exception as e:
@@ -336,9 +364,11 @@ def update_audio_tag():
 
                     if search_result == SearchResultCode.NOT_FOUND:
                         logger.warning("未找到曲目:%s" % search_content)
+                    elif search_result == SearchResultCode.CHECK:
+                        pass
                     else:
                         if update_artists(tag, album_info) == StatusCode.SUCCESS:
-                            if update_album_info(tag, album_info) == StatusCode.SUCCESS:
+                            if update_album_info(tag, album_info, song_info) == StatusCode.SUCCESS:
                                 status_code = StatusCode.SUCCESS
                             else:
                                 status_code = StatusCode.FAILED
@@ -384,6 +414,7 @@ def update_audio_tag():
 if "__main__" == __name__:
     logger.info('-------------------------------------------'
                 '程序开始执行-------------------------------------------')
+    NetworkService.str_2_cookies()
     update_audio_tag()
     logger.info('-------------------------------------------'
                 '程序执行结束-------------------------------------------')

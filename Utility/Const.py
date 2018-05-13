@@ -29,3 +29,11 @@ class Const:
 class CustomException:
     OpenFileError = ("-1", "文件打开失败！")
     SaveFileError = ("-2", "文件保存失败！")
+
+
+class StripTitleStr:
+    STRIP_STR = {"(Album Version)", "(Single Version)", "(Main Version)", "(Studio Version)"}
+
+
+class SkipArtist:
+    SKIP_ARTIST = {"f(x)"}
